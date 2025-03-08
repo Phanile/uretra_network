@@ -10,16 +10,16 @@ type ServerOptions struct {
 }
 
 type Server struct {
-	*ServerOptions
+	so          *ServerOptions
 	rpcChannel  chan RPC
 	quitChannel chan struct{}
 }
 
 func NewServer(opts *ServerOptions) *Server {
 	return &Server{
-		ServerOptions: opts,
-		rpcChannel:    make(chan RPC),
-		quitChannel:   make(chan struct{}),
+		so:          opts,
+		rpcChannel:  make(chan RPC),
+		quitChannel: make(chan struct{}),
 	}
 }
 
@@ -43,7 +43,7 @@ free:
 }
 
 func (s *Server) initTransports() {
-	for _, transport := range s.Transports {
+	for _, transport := range s.so.Transports {
 		go func(transport Transport) {
 			for rpc := range transport.Consume() {
 				s.rpcChannel <- rpc

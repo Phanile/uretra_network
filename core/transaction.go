@@ -1,9 +1,13 @@
 package core
 
-import "io"
+import (
+	"io"
+	"uretra-network/network"
+)
 
 type Transaction struct {
-	Data []byte
+	data []byte
+	from network.NetAddress
 }
 
 func (tr *Transaction) EncodeBinary(w io.Writer) error {
