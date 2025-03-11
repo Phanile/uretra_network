@@ -1,19 +1,32 @@
 package core
 
 import (
-	"io"
-	"uretra-network/network"
+	"uretra-network/crypto"
 )
 
 type Transaction struct {
-	data []byte
-	from network.NetAddress
+	Data      []byte
+	PublicKey crypto.PublicKey
+	signature *crypto.Signature
 }
 
-func (tr *Transaction) EncodeBinary(w io.Writer) error {
+func (tx *Transaction) Sign(key crypto.PrivateKey) error {
+	sign, err := key.Sign(tx.Data)
+
+	if err != nil {
+		return err
+	}
+
+	tx.signature = sign
+	tx.PublicKey = key.PublicKey()
+
 	return nil
 }
 
-func (tr *Transaction) DecodeBinary(r io.Reader) error {
-	return nil
+func (tx *Transaction) Verify() bool {
+	if tx.signature == nil {
+		return false
+	}
+
+	return tx.signature.VerifySignature(&tx.PublicKey, tx.Data)
 }
