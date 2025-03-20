@@ -1,7 +1,11 @@
 package core
 
 import (
+	"fmt"
+	"github.com/stretchr/testify/assert"
+	"testing"
 	"time"
+	"uretra-network/crypto"
 	"uretra-network/types"
 )
 
@@ -18,4 +22,34 @@ func randomBlock(height uint32) *Block {
 	}
 
 	return NewBlock(h, []*Transaction{tr1})
+}
+
+func TestBlock_Hash(t *testing.T) {
+	b := randomBlock(0)
+	fmt.Println(b.Hash(&BlockHasher{}))
+}
+
+func TestBlock_Sign(t *testing.T) {
+	privKey := crypto.GeneratePrivateKey()
+	b := randomBlock(0)
+	err := b.Sign(privKey)
+
+	if err != nil {
+		return
+	}
+
+	assert.Nil(t, b.Sign(privKey))
+}
+
+func TestBlock_Verify(t *testing.T) {
+	privKey := crypto.GeneratePrivateKey()
+	b := randomBlock(0)
+	err := b.Sign(privKey)
+	b.Validator = privKey.PublicKey()
+
+	if err != nil {
+		return
+	}
+
+	assert.True(t, b.Verify(*b.Signature))
 }
