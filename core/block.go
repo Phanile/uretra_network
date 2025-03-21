@@ -31,6 +31,21 @@ func NewBlock(h *Header, tr []*Transaction) *Block {
 	}
 }
 
+func NewBlockWithPrivateKey(h *Header, tr []*Transaction, pk crypto.PrivateKey) *Block {
+	b := &Block{
+		Header:       h,
+		Transactions: tr,
+	}
+
+	err := b.Sign(pk)
+
+	if err != nil {
+		panic(err)
+	}
+
+	return b
+}
+
 func (b *Block) Sign(key crypto.PrivateKey) error {
 	sign, err := key.Sign(b.HeaderData())
 
