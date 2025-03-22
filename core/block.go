@@ -24,6 +24,18 @@ type Block struct {
 	hash         types.Hash
 }
 
+func (h *Header) Bytes() []byte {
+	buf := &bytes.Buffer{}
+	enc := gob.NewEncoder(buf)
+	err := enc.Encode(h)
+
+	if err != nil {
+		panic(err)
+	}
+
+	return buf.Bytes()
+}
+
 func NewBlock(h *Header, tr []*Transaction) *Block {
 	return &Block{
 		Header:       h,
@@ -46,8 +58,12 @@ func NewBlockWithPrivateKey(h *Header, tr []*Transaction, pk crypto.PrivateKey) 
 	return b
 }
 
+func (b *Block) AddTransaction(tr *Transaction) {
+	b.Transactions = append(b.Transactions, tr)
+}
+
 func (b *Block) Sign(key crypto.PrivateKey) error {
-	sign, err := key.Sign(b.HeaderData())
+	sign, err := key.Sign(b.Header.Bytes())
 
 	if err != nil {
 		return err
@@ -59,12 +75,18 @@ func (b *Block) Sign(key crypto.PrivateKey) error {
 	return nil
 }
 
-func (b *Block) Verify(signature crypto.Signature) bool {
+func (b *Block) Verify() bool {
 	if b.Signature == nil {
 		return false
 	}
 
-	return signature.VerifySignature(&b.Validator, b.HeaderData())
+	for i := 0; i < len(b.Transactions); i++ {
+		if !b.Transactions[i].Verify() {
+			return false
+		}
+	}
+
+	return b.Signature.VerifySignature(&b.Validator, b.Header.Bytes())
 }
 
 func (b *Block) Decode(r io.Reader, decoder Decoder[*Block]) error {
@@ -75,22 +97,10 @@ func (b *Block) Encode(w io.Writer, encoder Encoder[*Block]) error {
 	return encoder.Encode(w, b)
 }
 
-func (b *Block) Hash(hasher Hasher[*Block]) types.Hash {
+func (b *Block) Hash(hasher Hasher[*Header]) types.Hash {
 	if b.hash.IsEmptyOrZero() {
-		b.hash = hasher.Hash(b)
+		b.hash = hasher.Hash(b.Header)
 	}
 
 	return b.hash
-}
-
-func (b *Block) HeaderData() []byte {
-	buf := &bytes.Buffer{}
-	enc := gob.NewEncoder(buf)
-	err := enc.Encode(b.Header)
-
-	if err != nil {
-		panic(err)
-	}
-
-	return buf.Bytes()
 }

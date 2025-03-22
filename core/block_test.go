@@ -9,32 +9,28 @@ import (
 	"uretra-network/types"
 )
 
-func randomBlock(height uint32) *Block {
+func randomBlock(t *testing.T, height uint32, prevBlockHash types.Hash) *Block {
 	h := &Header{
 		Version:       1,
-		PrevBlockHash: types.RandomHash(),
+		PrevBlockHash: prevBlockHash,
 		Timestamp:     time.Now().UnixNano(),
 		Height:        height,
 	}
 
-	tr1 := &Transaction{
-		Data: []byte("test data for test 21 04"),
-	}
+	tr1 := RandomTxWithSignature(t)
 
 	return NewBlock(h, []*Transaction{tr1})
 }
 
-func randomBlockWithSignature(height uint32) *Block {
+func randomBlockWithSignature(t *testing.T, height uint32, prevBlockHash types.Hash) *Block {
 	h := &Header{
 		Version:       1,
-		PrevBlockHash: types.RandomHash(),
+		PrevBlockHash: prevBlockHash,
 		Timestamp:     time.Now().UnixNano(),
 		Height:        height,
 	}
 
-	tr1 := &Transaction{
-		Data: []byte("test data for test 21 04"),
-	}
+	tr1 := RandomTxWithSignature(t)
 
 	privateKey := crypto.GeneratePrivateKey()
 
@@ -42,13 +38,13 @@ func randomBlockWithSignature(height uint32) *Block {
 }
 
 func TestBlock_Hash(t *testing.T) {
-	b := randomBlock(0)
+	b := randomBlock(t, 0, types.RandomHash())
 	fmt.Println(b.Hash(&BlockHasher{}))
 }
 
 func TestBlock_Sign(t *testing.T) {
 	privKey := crypto.GeneratePrivateKey()
-	b := randomBlock(0)
+	b := randomBlock(t, 0, types.RandomHash())
 	err := b.Sign(privKey)
 
 	if err != nil {
@@ -60,7 +56,7 @@ func TestBlock_Sign(t *testing.T) {
 
 func TestBlock_Verify(t *testing.T) {
 	privKey := crypto.GeneratePrivateKey()
-	b := randomBlock(0)
+	b := randomBlock(t, 0, types.RandomHash())
 	err := b.Sign(privKey)
 	b.Validator = privKey.PublicKey()
 
@@ -68,5 +64,5 @@ func TestBlock_Verify(t *testing.T) {
 		return
 	}
 
-	assert.True(t, b.Verify(*b.Signature))
+	assert.True(t, b.Verify())
 }

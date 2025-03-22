@@ -19,5 +19,20 @@ func (bv *BlockValidator) ValidateBlock(b *Block) bool {
 		return false
 	}
 
-	return b.Verify(*b.Signature)
+	if b.Header.Height != bv.bc.Height()+1 {
+		return false
+	}
+
+	prevHeader, err := bv.bc.GetHeader(b.Header.Height - 1)
+	hash := BlockHasher{}.Hash(prevHeader)
+
+	if hash != b.Header.PrevBlockHash {
+		return false
+	}
+
+	if err != nil {
+		return false
+	}
+
+	return b.Verify()
 }
