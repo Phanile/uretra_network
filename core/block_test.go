@@ -39,7 +39,7 @@ func randomBlockWithSignature(t *testing.T, height uint32, prevBlockHash types.H
 
 func TestBlock_Hash(t *testing.T) {
 	b := randomBlock(t, 0, types.RandomHash())
-	fmt.Println(b.Hash(&BlockHasher{}))
+	fmt.Println(b.Hash(&HeaderHasher{}))
 }
 
 func TestBlock_Sign(t *testing.T) {

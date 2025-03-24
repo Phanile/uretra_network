@@ -24,7 +24,7 @@ func (bv *BlockValidator) ValidateBlock(b *Block) bool {
 	}
 
 	prevHeader, err := bv.bc.GetHeader(b.Header.Height - 1)
-	hash := BlockHasher{}.Hash(prevHeader)
+	hash := HeaderHasher{}.Hash(prevHeader)
 
 	if hash != b.Header.PrevBlockHash {
 		return false

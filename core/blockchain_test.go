@@ -63,5 +63,5 @@ func getPrevBlockHash(t *testing.T, bc *Blockchain, height uint32) types.Hash {
 	header, err := bc.GetHeader(height - 1)
 	assert.Nil(t, err)
 
-	return BlockHasher{}.Hash(header)
+	return HeaderHasher{}.Hash(header)
 }
