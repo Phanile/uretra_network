@@ -8,7 +8,7 @@ import (
 type Transaction struct {
 	Data      []byte
 	From      crypto.PublicKey
-	signature *crypto.Signature
+	Signature *crypto.Signature
 	hash      types.Hash
 	firstSeen int64
 }
@@ -26,18 +26,18 @@ func (tx *Transaction) Sign(key crypto.PrivateKey) error {
 		return err
 	}
 
-	tx.signature = sign
+	tx.Signature = sign
 	tx.From = key.PublicKey()
 
 	return nil
 }
 
 func (tx *Transaction) Verify() bool {
-	if tx.signature == nil {
+	if tx.Signature == nil {
 		return false
 	}
 
-	return tx.signature.VerifySignature(&tx.From, tx.Data)
+	return tx.Signature.VerifySignature(&tx.From, tx.Data)
 }
 
 func (tx *Transaction) Hash(hasher Hasher[*Transaction]) types.Hash {

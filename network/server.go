@@ -10,6 +10,7 @@ import (
 var defaultBlockTime = 5 * time.Second
 
 type ServerOptions struct {
+	RPCHandler RPCHandler
 	Transports []Transport
 	BlockTime  time.Duration
 	PrivateKey *crypto.PrivateKey
@@ -29,7 +30,7 @@ func NewServer(opts *ServerOptions) *Server {
 		opts.BlockTime = defaultBlockTime
 	}
 
-	return &Server{
+	s := &Server{
 		so:          opts,
 		blockTime:   opts.BlockTime,
 		memPool:     NewTxPool(),
@@ -37,6 +38,12 @@ func NewServer(opts *ServerOptions) *Server {
 		rpcChannel:  make(chan RPC),
 		quitChannel: make(chan struct{}),
 	}
+
+	if opts.RPCHandler == nil {
+		opts.RPCHandler = NewDefaultRPCHandler(s)
+	}
+
+	return s
 }
 
 func (s *Server) Start() {
@@ -47,7 +54,12 @@ free:
 	for {
 		select {
 		case rpc := <-s.rpcChannel:
-			fmt.Printf("%+v\n", rpc)
+			err := s.so.RPCHandler.HandleRPC(rpc)
+
+			if err != nil {
+				fmt.Println(err)
+			}
+
 		case <-s.quitChannel:
 			break free
 		case <-ticker.C:
@@ -60,14 +72,21 @@ free:
 	fmt.Println("Server shutdown")
 }
 
-func (s *Server) handleTransaction(t *core.Transaction) {
-	if s.memPool.Has(t.Hash(core.TxHasher{})) {
-		return
+func (s *Server) ProcessTransaction(from NetAddress, transaction *core.Transaction) error {
+	hash := transaction.Hash(core.TxHasher{})
+	fmt.Printf("process transaction from %s - %s, memPool - %d\n", from, hash, s.memPool.Len())
+
+	if s.memPool.Has(transaction.Hash(core.TxHasher{})) {
+		return nil
 	}
 
-	if t.Verify() {
-		s.memPool.Add(t)
+	if transaction.Verify() {
+		s.memPool.Add(transaction)
 	}
+
+	transaction.SetFirstSeen(time.Now().UnixNano())
+
+	return nil
 }
 
 func (s *Server) createNewBlock() error {

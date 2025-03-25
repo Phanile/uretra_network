@@ -5,6 +5,7 @@ import (
 	"crypto/elliptic"
 	"crypto/rand"
 	"crypto/sha256"
+	"encoding/gob"
 	"math/big"
 	"uretra-network/types"
 )
@@ -29,6 +30,28 @@ type PublicKey struct {
 	Key *ecdsa.PublicKey
 }
 
+func (pk *PublicKey) GobEncode() ([]byte, error) {
+	if pk.Key == nil {
+		return nil, nil
+	}
+
+	return elliptic.MarshalCompressed(pk.Key.Curve, pk.Key.X, pk.Key.Y), nil
+}
+
+func (pk *PublicKey) GobDecode(data []byte) error {
+	if len(data) == 0 {
+		pk.Key = nil
+		return nil
+	}
+	x, y := elliptic.UnmarshalCompressed(elliptic.P256(), data)
+	pk.Key = &ecdsa.PublicKey{
+		Curve: elliptic.P256(),
+		X:     x,
+		Y:     y,
+	}
+	return nil
+}
+
 func (pk PrivateKey) PublicKey() PublicKey {
 	return PublicKey{
 		Key: &pk.key.PublicKey,
@@ -42,8 +65,40 @@ func (pk PublicKey) Address() types.Address {
 }
 
 type Signature struct {
-	R *big.Int
-	S *big.Int
+	r *big.Int
+	s *big.Int
+}
+
+func (s *Signature) R() *big.Int {
+	if s == nil {
+		return nil
+	}
+	return s.r
+}
+func (s *Signature) S() *big.Int {
+	if s == nil {
+		return nil
+	}
+	return s.s
+}
+
+func (s *Signature) GobEncode() ([]byte, error) {
+	if s == nil {
+		return nil, nil
+	}
+
+	return append(s.r.Bytes(), s.s.Bytes()...), nil
+}
+
+func (s *Signature) GobDecode(data []byte) error {
+	if len(data) == 0 {
+		return nil
+	}
+
+	half := len(data) / 2
+	s.r = new(big.Int).SetBytes(data[:half])
+	s.s = new(big.Int).SetBytes(data[half:])
+	return nil
 }
 
 func (pk PrivateKey) Sign(data []byte) (*Signature, error) {
@@ -54,11 +109,16 @@ func (pk PrivateKey) Sign(data []byte) (*Signature, error) {
 	}
 
 	return &Signature{
-		R: r,
-		S: s,
+		r: r,
+		s: s,
 	}, nil
 }
 
 func (signature *Signature) VerifySignature(pk *PublicKey, data []byte) bool {
-	return ecdsa.Verify(pk.Key, data, signature.R, signature.S)
+	return ecdsa.Verify(pk.Key, data, signature.r, signature.s)
+}
+
+func init() {
+	gob.Register(&PublicKey{})
+	gob.Register(&Signature{})
 }
