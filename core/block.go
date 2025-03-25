@@ -3,7 +3,6 @@ package core
 import (
 	"bytes"
 	"encoding/gob"
-	"io"
 	"uretra-network/crypto"
 	"uretra-network/types"
 )
@@ -89,12 +88,12 @@ func (b *Block) Verify() bool {
 	return b.Signature.VerifySignature(&b.Validator, b.Header.Bytes())
 }
 
-func (b *Block) Decode(r io.Reader, decoder Decoder[*Block]) error {
-	return decoder.Decode(r, b)
+func (b *Block) Decode(decoder Decoder[*Block]) error {
+	return decoder.Decode(b)
 }
 
-func (b *Block) Encode(w io.Writer, encoder Encoder[*Block]) error {
-	return encoder.Encode(w, b)
+func (b *Block) Encode(encoder Encoder[*Block]) error {
+	return encoder.Encode(b)
 }
 
 func (b *Block) Hash(hasher Hasher[*Header]) types.Hash {

@@ -1,6 +1,7 @@
 package core
 
 import (
+	"bytes"
 	"github.com/stretchr/testify/assert"
 	"testing"
 	"uretra-network/crypto"
@@ -34,6 +35,18 @@ func TestTransaction_Verify(t *testing.T) {
 	tx.From = otherKey.PublicKey()
 
 	assert.False(t, tx.Verify())
+}
+
+func TestTransaction_Decode(t *testing.T) {
+	tx := RandomTxWithSignature(t)
+	buf := &bytes.Buffer{}
+	assert.Nil(t, tx.Encode(NewGobTxEncoder(buf)))
+
+	txDecoded := Transaction{}
+
+	assert.Nil(t, txDecoded.Decode(NewGobTxDecoder(buf)))
+
+	assert.Equal(t, tx, txDecoded)
 }
 
 func RandomTxWithSignature(t *testing.T) *Transaction {

@@ -7,6 +7,8 @@ import (
 	"uretra-network/crypto"
 )
 
+var defaultBlockTime = 5 * time.Second
+
 type ServerOptions struct {
 	Transports []Transport
 	BlockTime  time.Duration
@@ -23,6 +25,10 @@ type Server struct {
 }
 
 func NewServer(opts *ServerOptions) *Server {
+	if opts.BlockTime == time.Duration(0) {
+		opts.BlockTime = defaultBlockTime
+	}
+
 	return &Server{
 		so:          opts,
 		blockTime:   opts.BlockTime,
