@@ -7,7 +7,7 @@ import (
 )
 
 func TestBlockchain_Create(t *testing.T) {
-	b := randomBlock(t, 0, types.Hash{})
+	b := randomBlockWithSignature(t, 0, types.Hash{})
 	bc := NewBlockchain(b)
 
 	assert.NotNil(t, bc.validator)
@@ -29,10 +29,10 @@ func TestBlockchain_AddBlock(t *testing.T) {
 
 	for i := 0; i < lenBlocks; i++ {
 		newBlock := randomBlockWithSignature(t, uint32(i+1), getPrevBlockHash(t, bc, uint32(i+1)))
-		assert.True(t, bc.addBlock(newBlock))
+		assert.True(t, bc.AddBlock(newBlock))
 	}
 
-	assert.False(t, bc.addBlock(randomBlock(t, 100, types.RandomHash())))
+	assert.False(t, bc.AddBlock(randomBlockWithSignature(t, 100, types.RandomHash())))
 	assert.Equal(t, bc.Height(), uint32(lenBlocks))
 }
 
@@ -41,7 +41,7 @@ func TestBlockchain_AddBlockToHigh(t *testing.T) {
 
 	bc := NewBlockchain(b)
 
-	assert.False(t, bc.addBlock(randomBlockWithSignature(t, 3, getPrevBlockHash(t, bc, uint32(1)))))
+	assert.False(t, bc.AddBlock(randomBlockWithSignature(t, 3, getPrevBlockHash(t, bc, uint32(1)))))
 }
 
 func TestBlockchain_GetHeader(t *testing.T) {
@@ -52,7 +52,7 @@ func TestBlockchain_GetHeader(t *testing.T) {
 
 	for i := 0; i < lenBlocks; i++ {
 		newBlock := randomBlockWithSignature(t, uint32(i+1), getPrevBlockHash(t, bc, uint32(i+1)))
-		assert.True(t, bc.addBlock(newBlock))
+		assert.True(t, bc.AddBlock(newBlock))
 		header, err := bc.GetHeader(newBlock.Header.Height)
 		assert.Nil(t, err)
 		assert.Equal(t, header, newBlock.Header)

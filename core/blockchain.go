@@ -29,7 +29,7 @@ func NewBlockchain(genesis *Block) *Blockchain {
 	return bc
 }
 
-func (bc *Blockchain) addBlock(b *Block) bool {
+func (bc *Blockchain) AddBlock(b *Block) bool {
 	if bc.validator.ValidateBlock(b) {
 		err := bc.addBlockWithoutValidation(b)
 

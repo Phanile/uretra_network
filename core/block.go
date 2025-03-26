@@ -2,7 +2,9 @@ package core
 
 import (
 	"bytes"
+	"crypto/sha256"
 	"encoding/gob"
+	"time"
 	"uretra-network/crypto"
 	"uretra-network/types"
 )
@@ -42,19 +44,22 @@ func NewBlock(h *Header, tr []*Transaction) *Block {
 	}
 }
 
-func NewBlockWithPrivateKey(h *Header, tr []*Transaction, pk crypto.PrivateKey) *Block {
-	b := &Block{
-		Header:       h,
-		Transactions: tr,
-	}
-
-	err := b.Sign(pk)
+func NewBlockFromPrevHeader(prevHeader *Header, tx []*Transaction) (*Block, error) {
+	dataHash, err := CalculateDataHash(tx)
 
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
 
-	return b
+	header := &Header{
+		Version:       1,
+		DataHash:      dataHash,
+		PrevBlockHash: HeaderHasher{}.Hash(prevHeader),
+		Timestamp:     time.Now().UnixNano(),
+		Height:        prevHeader.Height + 1,
+	}
+
+	return NewBlock(header, tx), nil
 }
 
 func (b *Block) AddTransaction(tr *Transaction) {
@@ -85,6 +90,12 @@ func (b *Block) Verify() bool {
 		}
 	}
 
+	dataHash, _ := b.CalculateDataHash(b.Transactions)
+
+	if dataHash != b.Header.DataHash {
+		return false
+	}
+
 	return b.Signature.VerifySignature(&b.Validator, b.Header.Bytes())
 }
 
@@ -102,4 +113,32 @@ func (b *Block) Hash(hasher Hasher[*Header]) types.Hash {
 	}
 
 	return b.hash
+}
+
+func (b *Block) CalculateDataHash(tx []*Transaction) (types.Hash, error) {
+	buf := &bytes.Buffer{}
+
+	for _, tr := range tx {
+		err := tr.Encode(NewGobTxEncoder(buf))
+
+		if err != nil {
+			return types.Hash{}, err
+		}
+	}
+
+	return sha256.Sum256(buf.Bytes()), nil
+}
+
+func CalculateDataHash(tx []*Transaction) (types.Hash, error) {
+	buf := &bytes.Buffer{}
+
+	for _, tr := range tx {
+		err := tr.Encode(NewGobTxEncoder(buf))
+
+		if err != nil {
+			return types.Hash{}, err
+		}
+	}
+
+	return sha256.Sum256(buf.Bytes()), nil
 }

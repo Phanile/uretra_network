@@ -9,42 +9,14 @@ import (
 	"uretra-network/types"
 )
 
-func randomBlock(t *testing.T, height uint32, prevBlockHash types.Hash) *Block {
-	h := &Header{
-		Version:       1,
-		PrevBlockHash: prevBlockHash,
-		Timestamp:     time.Now().UnixNano(),
-		Height:        height,
-	}
-
-	tr1 := RandomTxWithSignature(t)
-
-	return NewBlock(h, []*Transaction{tr1})
-}
-
-func randomBlockWithSignature(t *testing.T, height uint32, prevBlockHash types.Hash) *Block {
-	h := &Header{
-		Version:       1,
-		PrevBlockHash: prevBlockHash,
-		Timestamp:     time.Now().UnixNano(),
-		Height:        height,
-	}
-
-	tr1 := RandomTxWithSignature(t)
-
-	privateKey := crypto.GeneratePrivateKey()
-
-	return NewBlockWithPrivateKey(h, []*Transaction{tr1}, privateKey)
-}
-
 func TestBlock_Hash(t *testing.T) {
-	b := randomBlock(t, 0, types.RandomHash())
+	b := randomBlockWithSignature(t, 0, types.RandomHash())
 	fmt.Println(b.Hash(&HeaderHasher{}))
 }
 
 func TestBlock_Sign(t *testing.T) {
 	privKey := crypto.GeneratePrivateKey()
-	b := randomBlock(t, 0, types.RandomHash())
+	b := randomBlockWithSignature(t, 0, types.RandomHash())
 	err := b.Sign(privKey)
 
 	if err != nil {
@@ -55,14 +27,30 @@ func TestBlock_Sign(t *testing.T) {
 }
 
 func TestBlock_Verify(t *testing.T) {
-	privKey := crypto.GeneratePrivateKey()
-	b := randomBlock(t, 0, types.RandomHash())
-	err := b.Sign(privKey)
-	b.Validator = privKey.PublicKey()
+	assert.True(t, randomBlockWithSignature(t, 0, types.RandomHash()).Verify())
+}
 
-	if err != nil {
-		return
+func randomBlockWithSignature(t *testing.T, height uint32, prevBlockHash types.Hash) *Block {
+	privateKey := crypto.GeneratePrivateKey()
+
+	h := &Header{
+		Version:       1,
+		PrevBlockHash: prevBlockHash,
+		Timestamp:     time.Now().UnixNano(),
+		Height:        height,
 	}
 
-	assert.True(t, b.Verify())
+	tr1 := RandomTxWithSignature(t)
+
+	b := NewBlock(h, []*Transaction{tr1})
+	b.Validator = privateKey.PublicKey()
+	assert.Nil(t, b.Sign(privateKey))
+
+	dataHash, err := b.CalculateDataHash(b.Transactions)
+	assert.Nil(t, err)
+
+	b.Header.DataHash = dataHash
+	b.Hash(&HeaderHasher{})
+
+	return b
 }
