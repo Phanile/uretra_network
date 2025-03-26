@@ -52,6 +52,21 @@ func (t *LocalTransport) SendMessage(to NetAddress, data []byte) error {
 	return nil
 }
 
+func (t *LocalTransport) Broadcast(payload []byte) error {
+	t.lock.RLock()
+	defer t.lock.RUnlock()
+
+	for _, peer := range t.peers {
+		err := t.SendMessage(peer.Address(), payload)
+
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
 func (t *LocalTransport) Address() NetAddress {
 	return t.address
 }
