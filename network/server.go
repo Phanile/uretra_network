@@ -49,7 +49,7 @@ func NewServer(opts *ServerOptions) (*Server, error) {
 
 	s := &Server{
 		so:          opts,
-		memPool:     NewTxPool(),
+		memPool:     NewTxPool(256),
 		chain:       chain,
 		isValidator: opts.PrivateKey != nil,
 		rpcChannel:  make(chan RPC),
@@ -117,15 +117,13 @@ func (s *Server) ProcessMessage(m *DecodedMessage) error {
 
 func (s *Server) ProcessTransaction(transaction *core.Transaction) error {
 	hash := transaction.Hash(core.TxHasher{})
-	_ = s.so.Logger.Log("msg", "adding new tx to mempool", "hash", hash, "mempool length", s.memPool.Len())
+	_ = s.so.Logger.Log("msg", "adding new tx to mempool", "hash", hash, "mempool length", s.memPool.PendingCount())
 
-	if s.memPool.Has(transaction.Hash(core.TxHasher{})) {
+	if s.memPool.Contains(hash) {
 		return nil
 	}
 
 	if transaction.Verify() {
-		transaction.SetFirstSeen(time.Now().UnixNano())
-
 		go func() {
 			_ = s.broadcastTx(transaction)
 		}()
@@ -186,7 +184,7 @@ func (s *Server) createNewBlock() error {
 		return err
 	}
 
-	txs := s.memPool.Transactions()
+	txs := s.memPool.Pending()
 
 	block, e := core.NewBlockFromPrevHeader(header, txs)
 
@@ -201,7 +199,7 @@ func (s *Server) createNewBlock() error {
 	}
 
 	if s.chain.AddBlock(block) {
-		s.memPool.Flush()
+		s.memPool.ClearPending()
 	}
 
 	return nil

@@ -1,14 +1,16 @@
 package core
 
 import (
+	"github.com/go-kit/log"
 	"github.com/stretchr/testify/assert"
+	"os"
 	"testing"
 	"uretra-network/types"
 )
 
 func TestBlockchain_Create(t *testing.T) {
 	b := randomBlockWithSignature(t, 0, types.Hash{})
-	bc := NewBlockchain(b)
+	bc := NewBlockchain(log.NewLogfmtLogger(os.Stderr), b)
 
 	assert.NotNil(t, bc.validator)
 	assert.Equal(t, bc.Height(), uint32(0))
@@ -16,7 +18,7 @@ func TestBlockchain_Create(t *testing.T) {
 
 func TestBlockchain_HasBlock(t *testing.T) {
 	b := randomBlockWithSignature(t, 0, types.Hash{})
-	bc := NewBlockchain(b)
+	bc := NewBlockchain(log.NewLogfmtLogger(os.Stderr), b)
 
 	assert.True(t, bc.HasBlock(0))
 }
@@ -24,7 +26,7 @@ func TestBlockchain_HasBlock(t *testing.T) {
 func TestBlockchain_AddBlock(t *testing.T) {
 	b := randomBlockWithSignature(t, 0, types.Hash{})
 
-	bc := NewBlockchain(b)
+	bc := NewBlockchain(log.NewLogfmtLogger(os.Stderr), b)
 	lenBlocks := 512
 
 	for i := 0; i < lenBlocks; i++ {
@@ -39,7 +41,7 @@ func TestBlockchain_AddBlock(t *testing.T) {
 func TestBlockchain_AddBlockToHigh(t *testing.T) {
 	b := randomBlockWithSignature(t, 0, types.RandomHash())
 
-	bc := NewBlockchain(b)
+	bc := NewBlockchain(log.NewLogfmtLogger(os.Stderr), b)
 
 	assert.False(t, bc.AddBlock(randomBlockWithSignature(t, 3, getPrevBlockHash(t, bc, uint32(1)))))
 }
@@ -47,7 +49,7 @@ func TestBlockchain_AddBlockToHigh(t *testing.T) {
 func TestBlockchain_GetHeader(t *testing.T) {
 	b := randomBlockWithSignature(t, 0, types.Hash{})
 
-	bc := NewBlockchain(b)
+	bc := NewBlockchain(log.NewLogfmtLogger(os.Stderr), b)
 	lenBlocks := 512
 
 	for i := 0; i < lenBlocks; i++ {

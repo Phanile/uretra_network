@@ -10,7 +10,6 @@ type Transaction struct {
 	From      crypto.PublicKey
 	Signature *crypto.Signature
 	hash      types.Hash
-	firstSeen int64
 }
 
 func NewTransaction(data []byte) *Transaction {
@@ -54,12 +53,4 @@ func (tx *Transaction) Decode(decoder Decoder[*Transaction]) error {
 
 func (tx *Transaction) Encode(encoder Encoder[*Transaction]) error {
 	return encoder.Encode(tx)
-}
-
-func (tx *Transaction) SetFirstSeen(firstSeen int64) {
-	tx.firstSeen = firstSeen
-}
-
-func (tx *Transaction) FirstSeen() int64 {
-	return tx.firstSeen
 }
