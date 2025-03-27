@@ -54,12 +54,6 @@ func (m *Message) Bytes() ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
-func NewDefaultRPCHandler(p RPCProcessor) *DefaultRPCHandler {
-	return &DefaultRPCHandler{
-		p: p,
-	}
-}
-
 func DefaultRPCDecodeFunc(rpc RPC) (*DecodedMessage, error) {
 	msg := &Message{}
 	err := gob.NewDecoder(rpc.Payload).Decode(msg)

@@ -41,7 +41,7 @@ func (t *LocalTransport) SendMessage(to NetAddress, data []byte) error {
 	peer, ok := t.peers[to]
 
 	if !ok {
-		return fmt.Errorf("some problems while send message")
+		return fmt.Errorf("send message error: peer does not exist")
 	}
 
 	peer.consumeChannel <- RPC{

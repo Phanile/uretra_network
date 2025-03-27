@@ -45,7 +45,7 @@ func NewServer(opts *ServerOptions) (*Server, error) {
 		opts.Logger = log.With(opts.Logger, "ID", opts.ID)
 	}
 
-	chain := core.NewBlockchain(genesisBlock())
+	chain := core.NewBlockchain(opts.Logger, genesisBlock())
 
 	s := &Server{
 		so:          opts,
@@ -175,6 +175,10 @@ func (s *Server) broadcastTx(tx *core.Transaction) error {
 	return s.Broadcast(bytes)
 }
 
+func (s *Server) broadcastBlock(b *core.Block) error {
+	return nil
+}
+
 func (s *Server) createNewBlock() error {
 	header, err := s.chain.GetHeader(s.chain.Height())
 
@@ -182,7 +186,9 @@ func (s *Server) createNewBlock() error {
 		return err
 	}
 
-	block, e := core.NewBlockFromPrevHeader(header, nil)
+	txs := s.memPool.Transactions()
+
+	block, e := core.NewBlockFromPrevHeader(header, txs)
 
 	signErr := block.Sign(*s.so.PrivateKey)
 
@@ -194,7 +200,9 @@ func (s *Server) createNewBlock() error {
 		return e
 	}
 
-	s.chain.AddBlock(block)
+	if s.chain.AddBlock(block) {
+		s.memPool.Flush()
+	}
 
 	return nil
 }
@@ -203,7 +211,7 @@ func genesisBlock() *core.Block {
 	h := &core.Header{
 		Version:   1,
 		DataHash:  types.Hash{},
-		Timestamp: time.Now().UnixNano(),
+		Timestamp: 0,
 		Height:    0,
 	}
 	return core.NewBlock(h, nil)
