@@ -1,6 +1,7 @@
 package core
 
 import (
+	"bytes"
 	"fmt"
 	"github.com/stretchr/testify/assert"
 	"testing"
@@ -28,6 +29,20 @@ func TestBlock_Sign(t *testing.T) {
 
 func TestBlock_Verify(t *testing.T) {
 	assert.True(t, randomBlockWithSignature(t, 0, types.RandomHash()).Verify())
+}
+
+func TestBlock_DecodeEncode(t *testing.T) {
+	b1 := randomBlockWithSignature(t, 1, types.Hash{})
+	buf := &bytes.Buffer{}
+
+	assert.Nil(t, b1.Encode(NewGobBlockEncoder(buf)))
+
+	b2 := &Block{}
+
+	assert.Nil(t, b2.Decode(NewGobBlockDecoder(buf)))
+
+	b2.Hash(HeaderHasher{})
+	assert.Equal(t, b1, b2)
 }
 
 func randomBlockWithSignature(t *testing.T, height uint32, prevBlockHash types.Hash) *Block {

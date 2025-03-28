@@ -11,8 +11,9 @@ import (
 type MessageType byte
 
 const (
-	MessageTypeTx MessageType = iota + 0x1
+	MessageTypeTx MessageType = iota
 	MessageTypeBlock
+	MessageTypeGetBlocks
 )
 
 type RPC struct {
@@ -65,7 +66,7 @@ func DefaultRPCDecodeFunc(rpc RPC) (*DecodedMessage, error) {
 	switch msg.Header {
 	case MessageTypeTx:
 		tx := &core.Transaction{}
-		err := tx.Decode(core.NewGobTxDecoder(bytes.NewBuffer(msg.Data)))
+		err := tx.Decode(core.NewGobTxDecoder(bytes.NewReader(msg.Data)))
 
 		if err != nil {
 			return nil, err
@@ -74,6 +75,18 @@ func DefaultRPCDecodeFunc(rpc RPC) (*DecodedMessage, error) {
 		return &DecodedMessage{
 			From: rpc.From,
 			Data: tx,
+		}, nil
+	case MessageTypeBlock:
+		b := &core.Block{}
+		err := b.Decode(core.NewGobBlockDecoder(bytes.NewReader(msg.Data)))
+
+		if err != nil {
+			return nil, err
+		}
+
+		return &DecodedMessage{
+			From: rpc.From,
+			Data: b,
 		}, nil
 
 	default:

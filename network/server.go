@@ -110,6 +110,8 @@ func (s *Server) ProcessMessage(m *DecodedMessage) error {
 	switch data := m.Data.(type) {
 	case *core.Transaction:
 		return s.ProcessTransaction(data)
+	case *core.Block:
+		return s.ProcessBlock(data)
 	}
 
 	return nil
@@ -124,11 +126,17 @@ func (s *Server) ProcessTransaction(transaction *core.Transaction) error {
 	}
 
 	if transaction.Verify() {
-		go func() {
-			_ = s.broadcastTx(transaction)
-		}()
+		go s.broadcastTx(transaction)
 
 		s.memPool.Add(transaction)
+	}
+
+	return nil
+}
+
+func (s *Server) ProcessBlock(b *core.Block) error {
+	if s.chain.AddBlock(b) {
+		go s.broadcastBlock(b)
 	}
 
 	return nil
@@ -164,17 +172,31 @@ func (s *Server) broadcastTx(tx *core.Transaction) error {
 	}
 
 	msg := NewMessage(MessageTypeTx, buf.Bytes())
-	bytes, errBytes := msg.Bytes()
+	encMsg, errBytes := msg.Bytes()
 
 	if errBytes != nil {
 		return errBytes
 	}
 
-	return s.Broadcast(bytes)
+	return s.Broadcast(encMsg)
 }
 
 func (s *Server) broadcastBlock(b *core.Block) error {
-	return nil
+	buf := &bytes.Buffer{}
+	err := b.Encode(core.NewGobBlockEncoder(buf))
+
+	if err != nil {
+		return err
+	}
+
+	msg := NewMessage(MessageTypeBlock, buf.Bytes())
+	encMsg, errBytes := msg.Bytes()
+
+	if errBytes != nil {
+		return errBytes
+	}
+
+	return s.Broadcast(encMsg)
 }
 
 func (s *Server) createNewBlock() error {
@@ -199,6 +221,8 @@ func (s *Server) createNewBlock() error {
 	}
 
 	if s.chain.AddBlock(block) {
+		go s.broadcastBlock(block)
+
 		s.memPool.ClearPending()
 	}
 

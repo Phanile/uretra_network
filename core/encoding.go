@@ -40,3 +40,31 @@ func NewGobTxDecoder(r io.Reader) *GobTxDecoder {
 func (d *GobTxDecoder) Decode(tx *Transaction) error {
 	return gob.NewDecoder(d.r).Decode(tx)
 }
+
+type GobBlockEncoder struct {
+	w io.Writer
+}
+
+func NewGobBlockEncoder(w io.Writer) *GobBlockEncoder {
+	return &GobBlockEncoder{
+		w: w,
+	}
+}
+
+func (e *GobBlockEncoder) Encode(block *Block) error {
+	return gob.NewEncoder(e.w).Encode(block)
+}
+
+type GobBlockDecoder struct {
+	r io.Reader
+}
+
+func NewGobBlockDecoder(r io.Reader) *GobBlockDecoder {
+	return &GobBlockDecoder{
+		r: r,
+	}
+}
+
+func (d *GobBlockDecoder) Decode(block *Block) error {
+	return gob.NewDecoder(d.r).Decode(block)
+}
