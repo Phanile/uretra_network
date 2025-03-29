@@ -11,7 +11,7 @@ import (
 type MessageType byte
 
 const (
-	MessageTypeTx MessageType = iota
+	MessageTypeTx MessageType = iota + 0x1
 	MessageTypeBlock
 	MessageTypeGetBlocks
 )

@@ -34,6 +34,16 @@ func NewBlockchain(l log.Logger, genesis *Block) *Blockchain {
 
 func (bc *Blockchain) AddBlock(b *Block) bool {
 	if bc.validator.ValidateBlock(b) {
+
+		for _, tr := range b.Transactions {
+			vm := NewVM(tr.Data)
+			err := vm.Run()
+
+			if err != nil {
+				return false
+			}
+		}
+
 		err := bc.addBlockWithoutValidation(b)
 
 		if err != nil {

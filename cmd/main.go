@@ -4,8 +4,6 @@ import (
 	"bytes"
 	"fmt"
 	"log"
-	"math/rand"
-	"strconv"
 	"time"
 	"uretra-network/core"
 	"uretra-network/crypto"
@@ -79,7 +77,7 @@ func makeServer(pk *crypto.PrivateKey, id string, transport network.Transport) *
 
 func sendTransaction(tr network.Transport, to network.NetAddress) error {
 	privateKey := crypto.GeneratePrivateKey()
-	data := []byte(strconv.FormatInt(int64(rand.Intn(1000000)), 10))
+	data := []byte{10, 0x01, 20, 0x01, 0x02} // 10 Push 20 Push Add
 	tx := core.NewTransaction(data)
 	err := tx.Sign(privateKey)
 
