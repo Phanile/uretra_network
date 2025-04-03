@@ -1,6 +1,9 @@
 package core
 
-import "fmt"
+import (
+	"encoding/binary"
+	"fmt"
+)
 
 type Instruction byte
 
@@ -10,12 +13,14 @@ const (
 	PushBytes Instruction = 0x03 //3
 	Pack      Instruction = 0x04 //4
 	Sub       Instruction = 0x05 //5
+	Store     Instruction = 0x06 //6
 )
 
 type VM struct {
 	data  []byte
 	ip    int //instruction pointer
 	stack *Stack
+	state *State
 }
 
 type Stack struct {
@@ -39,18 +44,20 @@ func (s *Stack) Pop() any {
 	if s.sp == 0 {
 		return fmt.Errorf("no data in the stack")
 	}
-	s.sp--
+
 	o := s.data[0]
 	s.data = append(s.data[:0], s.data[1:]...)
+	s.sp--
 
 	return o
 }
 
-func NewVM(data []byte) *VM {
+func NewVM(data []byte, state *State) *VM {
 	return &VM{
 		data:  data,
 		ip:    0,
 		stack: NewStack(128),
+		state: state,
 	}
 }
 
@@ -96,9 +103,36 @@ func (vm *VM) Execute(instr Instruction) error {
 		}
 
 		vm.stack.Push(b)
+
+	case Store:
+		var (
+			key             = vm.stack.Pop().([]byte)
+			value           = vm.stack.Pop()
+			serializedValue []byte
+		)
+
+		switch v := value.(type) {
+		case uint8:
+			serializedValue = serializeInt64(int64(v))
+		default:
+			panic("unknown type")
+		}
+
+		_ = vm.state.Put(key, serializedValue)
 	default:
 		break
 	}
 
 	return nil
+}
+
+func serializeInt64(data int64) []byte {
+	buf := make([]byte, 8)
+	binary.LittleEndian.PutUint64(buf, uint64(data))
+
+	return buf
+}
+
+func deserializeInt64(data []byte) int64 {
+	return int64(binary.LittleEndian.Uint64(data))
 }

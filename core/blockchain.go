@@ -12,6 +12,7 @@ type Blockchain struct {
 	lock      sync.RWMutex
 	headers   []*Header
 	validator Validator
+	state     *State
 }
 
 func NewBlockchain(l log.Logger, genesis *Block) *Blockchain {
@@ -19,6 +20,7 @@ func NewBlockchain(l log.Logger, genesis *Block) *Blockchain {
 		logger:  l,
 		headers: []*Header{},
 		store:   &MemoryStorage{},
+		state:   NewState(),
 	}
 
 	bc.validator = NewBlockValidator(bc)
@@ -34,14 +36,17 @@ func NewBlockchain(l log.Logger, genesis *Block) *Blockchain {
 
 func (bc *Blockchain) AddBlock(b *Block) bool {
 	if bc.validator.ValidateBlock(b) {
-
 		for _, tr := range b.Transactions {
-			vm := NewVM(tr.Data)
+			vm := NewVM(tr.Data, bc.state)
 			err := vm.Run()
 
 			if err != nil {
 				return false
 			}
+
+			result := vm.stack.Pop()
+
+			fmt.Println(result)
 		}
 
 		err := bc.addBlockWithoutValidation(b)
