@@ -110,6 +110,20 @@ func DefaultRPCDecodeFunc(rpc RPC) (*DecodedMessage, error) {
 			Data: &GetStatusMessage{},
 		}, nil
 
+	case MessageTypeGetBlocks:
+		getBlocksMsg := &GetBlocksMessage{}
+
+		err := gob.NewDecoder(bytes.NewReader(msg.Data)).Decode(getBlocksMsg)
+
+		if err != nil {
+			return nil, err
+		}
+
+		return &DecodedMessage{
+			From: rpc.From,
+			Data: getBlocksMsg,
+		}, nil
+
 	default:
 		return nil, fmt.Errorf("invalid message type %x", msg.Header)
 	}

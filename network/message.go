@@ -1,5 +1,9 @@
 package network
 
+type GetBlocksMessage struct {
+	From uint32
+	To   uint32
+}
 type GetStatusMessage struct {
 }
 

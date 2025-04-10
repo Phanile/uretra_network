@@ -17,10 +17,10 @@ var defaultBlockTime = 5 * time.Second
 type ServerOptions struct {
 	ID            string
 	Transport     Transport
+	Transports    []Transport
 	Logger        log.Logger
 	RPCDecodeFunc RPCDecodeFunc
 	RPCProcessor  RPCProcessor
-	Transports    []Transport
 	BlockTime     time.Duration
 	PrivateKey    *crypto.PrivateKey
 }
@@ -67,6 +67,8 @@ func NewServer(opts *ServerOptions) (*Server, error) {
 		go s.validatorLoop()
 	}
 
+	s.boostrapNodes()
+
 	return s, nil
 }
 
@@ -97,6 +99,20 @@ free:
 	_ = s.so.Logger.Log("msg", "Server shutdown")
 }
 
+func (s *Server) boostrapNodes() {
+	for _, tr := range s.so.Transports {
+		if tr.Address() == s.so.Transport.Address() {
+			continue
+		}
+
+		if connErr := s.so.Transport.Connect(tr); connErr != nil {
+			_ = s.so.Logger.Log("error", "could not connect to node: ", tr)
+		}
+
+		s.sendGetStatusMessage(tr)
+	}
+}
+
 func (s *Server) sendGetStatusMessage(transport Transport) {
 	getStatusMsg := &GetStatusMessage{}
 
@@ -111,7 +127,7 @@ func (s *Server) sendGetStatusMessage(transport Transport) {
 	msg := NewMessage(MessageTypeGetStatus, buf.Bytes())
 	msgData, _ := msg.Bytes()
 
-	errSend := transport.SendMessage(transport.Address(), msgData)
+	errSend := s.so.Transport.SendMessage(transport.Address(), msgData)
 
 	if errSend != nil {
 		_ = s.so.Logger.Log("error", "cannot send message to server")
@@ -140,6 +156,8 @@ func (s *Server) ProcessMessage(m *DecodedMessage) error {
 		return s.processGetStatusMessage(m.From)
 	case *StatusMessage:
 		return s.processStatusMessage(m.From, data)
+	case *GetBlocksMessage:
+		return s.processGetBlocksMessage(m.From, data)
 	}
 	return nil
 }
@@ -191,6 +209,34 @@ func (s *Server) processGetStatusMessage(from NetAddress) error {
 
 func (s *Server) processStatusMessage(adr NetAddress, m *StatusMessage) error {
 	fmt.Println("I AM ", s.so.ID, ", ", "get from ", adr, " data: ", " ID: ", m.ID, " Height of chain: ", m.ActualHeight)
+
+	if s.chain.Height() >= m.ActualHeight {
+		return nil
+	}
+
+	getBlocksMessage := &GetBlocksMessage{
+		From: s.chain.Height(),
+		To:   0,
+	}
+
+	buf := &bytes.Buffer{}
+
+	_ = gob.NewEncoder(buf).Encode(getBlocksMessage)
+
+	msg := NewMessage(MessageTypeGetBlocks, buf.Bytes())
+	data, _ := msg.Bytes()
+
+	errSend := s.so.Transport.SendMessage(adr, data)
+	fmt.Println("I AM ", s.so.ID, ", ", "wanna get blocks from ", adr, " : my chain height: ", getBlocksMessage.From, " To: ", getBlocksMessage.To)
+
+	if errSend != nil {
+		return errSend
+	}
+
+	return nil
+}
+
+func (s *Server) processGetBlocksMessage(from NetAddress, m *GetBlocksMessage) error {
 	return nil
 }
 

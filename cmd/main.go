@@ -25,8 +25,8 @@ func main() {
 	initRemoteServers([]network.Transport{trRemoteA, trRemoteB, trRemoteC})
 
 	sendTestTransactions(trRemoteA, trLocal)
-	sendGetStatusMessage(trRemoteA, trLocal.Address())
-	//startLateServer(trRemoteC)
+	//sendGetStatusMessage(trRemoteA, trLocal.Address())
+	startLateServer(trLocal)
 
 	privateKey := crypto.GeneratePrivateKey()
 
@@ -48,9 +48,12 @@ func startLateServer(transport network.Transport) {
 
 		trLate := network.NewLocalTransport("LATE_REMOTE")
 		_ = transport.Connect(trLate)
+		_ = trLate.Connect(transport)
 		lateServer := makeServer(nil, "LATE", trLate)
 
 		go lateServer.Start()
+
+		sendGetStatusMessage(trLate, transport.Address())
 	}()
 }
 
