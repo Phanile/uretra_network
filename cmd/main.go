@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"encoding/gob"
 	"fmt"
 	"log"
 	"time"
@@ -24,6 +25,7 @@ func main() {
 	initRemoteServers([]network.Transport{trRemoteA, trRemoteB, trRemoteC})
 
 	sendTestTransactions(trRemoteA, trLocal)
+	sendGetStatusMessage(trRemoteA, trLocal.Address())
 	//startLateServer(trRemoteC)
 
 	privateKey := crypto.GeneratePrivateKey()
@@ -62,6 +64,7 @@ func initRemoteServers(trs []network.Transport) {
 
 func makeServer(pk *crypto.PrivateKey, id string, transport network.Transport) *network.Server {
 	opts := network.ServerOptions{
+		Transport:  transport,
 		PrivateKey: pk,
 		ID:         id,
 		Transports: []network.Transport{transport},
@@ -78,7 +81,8 @@ func makeServer(pk *crypto.PrivateKey, id string, transport network.Transport) *
 
 func sendTransaction(tr network.Transport, to network.NetAddress) error {
 	privateKey := crypto.GeneratePrivateKey()
-	data := []byte{10, 0x01, 20, 0x01, 0x02} // 10 Push 20 Push Add
+	//8, PushInt, i, PushBytes, t, PushBytes, space, PushBytes, w, PushBytes, o, PushBytes, r, PushBytes, k, PushBytes, s, PushBytes, Pack, 21, PushInt, Store
+	data := []byte{8, 0x01, 105, 0x03, 116, 0x03, 32, 0x03, 119, 0x03, 111, 0x03, 114, 0x03, 107, 0x03, 115, 0x03, 0x04, 21, 0x01, 0x06}
 	tx := core.NewTransaction(data)
 	err := tx.Sign(privateKey)
 
@@ -108,4 +112,22 @@ func sendTransaction(tr network.Transport, to network.NetAddress) error {
 	}
 
 	return nil
+}
+
+func sendGetStatusMessage(transport network.Transport, to network.NetAddress) {
+	go func() {
+		for {
+			getStatusMsg := &network.GetStatusMessage{}
+
+			buf := &bytes.Buffer{}
+			_ = gob.NewEncoder(buf).Encode(getStatusMsg)
+
+			msg := network.NewMessage(network.MessageTypeGetStatus, buf.Bytes())
+			msgData, _ := msg.Bytes()
+
+			_ = transport.SendMessage(to, msgData)
+
+			time.Sleep(time.Second * 2)
+		}
+	}()
 }

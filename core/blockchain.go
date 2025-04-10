@@ -43,7 +43,7 @@ func (bc *Blockchain) AddBlock(b *Block) bool {
 			if err != nil {
 				return false
 			}
-
+			fmt.Printf("state: %+v\n", bc.state)
 			result := vm.stack.Pop()
 
 			fmt.Println(result)

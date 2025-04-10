@@ -2,6 +2,8 @@ package network
 
 import (
 	"bytes"
+	"encoding/gob"
+	"fmt"
 	"github.com/go-kit/log"
 	"os"
 	"time"
@@ -14,6 +16,7 @@ var defaultBlockTime = 5 * time.Second
 
 type ServerOptions struct {
 	ID            string
+	Transport     Transport
 	Logger        log.Logger
 	RPCDecodeFunc RPCDecodeFunc
 	RPCProcessor  RPCProcessor
@@ -94,6 +97,27 @@ free:
 	_ = s.so.Logger.Log("msg", "Server shutdown")
 }
 
+func (s *Server) sendGetStatusMessage(transport Transport) {
+	getStatusMsg := &GetStatusMessage{}
+
+	buf := &bytes.Buffer{}
+	err := gob.NewEncoder(buf).Encode(getStatusMsg)
+
+	if err != nil {
+		_ = s.so.Logger.Log("error", "encode get status message failed")
+		return
+	}
+
+	msg := NewMessage(MessageTypeGetStatus, buf.Bytes())
+	msgData, _ := msg.Bytes()
+
+	errSend := transport.SendMessage(transport.Address(), msgData)
+
+	if errSend != nil {
+		_ = s.so.Logger.Log("error", "cannot send message to server")
+	}
+}
+
 func (s *Server) Broadcast(payload []byte) error {
 	for _, transport := range s.so.Transports {
 		err := transport.Broadcast(payload)
@@ -109,15 +133,18 @@ func (s *Server) Broadcast(payload []byte) error {
 func (s *Server) ProcessMessage(m *DecodedMessage) error {
 	switch data := m.Data.(type) {
 	case *core.Transaction:
-		return s.ProcessTransaction(data)
+		return s.processTransaction(data)
 	case *core.Block:
-		return s.ProcessBlock(data)
+		return s.processBlock(data)
+	case *GetStatusMessage:
+		return s.processGetStatusMessage(m.From)
+	case *StatusMessage:
+		return s.processStatusMessage(m.From, data)
 	}
-
 	return nil
 }
 
-func (s *Server) ProcessTransaction(transaction *core.Transaction) error {
+func (s *Server) processTransaction(transaction *core.Transaction) error {
 	hash := transaction.Hash(core.TxHasher{})
 	_ = s.so.Logger.Log("msg", "adding new tx to mempool", "hash", hash, "mempool length", s.memPool.PendingCount())
 
@@ -134,11 +161,36 @@ func (s *Server) ProcessTransaction(transaction *core.Transaction) error {
 	return nil
 }
 
-func (s *Server) ProcessBlock(b *core.Block) error {
+func (s *Server) processBlock(b *core.Block) error {
 	if s.chain.AddBlock(b) {
 		go s.broadcastBlock(b)
 	}
 
+	return nil
+}
+
+func (s *Server) processGetStatusMessage(from NetAddress) error {
+	statusMessage := &StatusMessage{
+		ActualHeight: s.chain.Height(),
+		ID:           s.so.ID,
+	}
+
+	buf := &bytes.Buffer{}
+
+	err := gob.NewEncoder(buf).Encode(statusMessage)
+
+	if err != nil {
+		return err
+	}
+
+	msg := NewMessage(MessageTypeStatus, buf.Bytes())
+	data, _ := msg.Bytes()
+
+	return s.so.Transport.SendMessage(from, data)
+}
+
+func (s *Server) processStatusMessage(adr NetAddress, m *StatusMessage) error {
+	fmt.Println("I AM ", s.so.ID, ", ", "get from ", adr, " data: ", " ID: ", m.ID, " Height of chain: ", m.ActualHeight)
 	return nil
 }
 
