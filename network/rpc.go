@@ -5,6 +5,7 @@ import (
 	"encoding/gob"
 	"fmt"
 	"io"
+	"net"
 	"uretra-network/core"
 )
 
@@ -19,7 +20,7 @@ const (
 )
 
 type RPC struct {
-	From    NetAddress
+	From    net.Addr
 	Payload io.Reader
 }
 
@@ -29,7 +30,7 @@ type Message struct {
 }
 
 type DecodedMessage struct {
-	From NetAddress
+	From net.Addr
 	Data any
 }
 

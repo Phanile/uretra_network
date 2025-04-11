@@ -5,7 +5,9 @@ import (
 	"encoding/gob"
 	"fmt"
 	"github.com/go-kit/log"
+	"net"
 	"os"
+	"sync"
 	"time"
 	"uretra-network/core"
 	"uretra-network/crypto"
@@ -15,9 +17,9 @@ import (
 var defaultBlockTime = 5 * time.Second
 
 type ServerOptions struct {
+	SeedNodes     []string
+	ListenAddress string
 	ID            string
-	Transport     Transport
-	Transports    []Transport
 	Logger        log.Logger
 	RPCDecodeFunc RPCDecodeFunc
 	RPCProcessor  RPCProcessor
@@ -26,12 +28,16 @@ type ServerOptions struct {
 }
 
 type Server struct {
-	so          *ServerOptions
-	memPool     *TxPool
-	chain       *core.Blockchain
-	isValidator bool
-	rpcChannel  chan RPC
-	quitChannel chan struct{}
+	TCPTransport *TCPTransport
+	peerCh       chan *TCPPeer
+	mu           sync.RWMutex
+	peerMap      map[net.Addr]*TCPPeer
+	so           *ServerOptions
+	memPool      *TxPool
+	chain        *core.Blockchain
+	isValidator  bool
+	rpcChannel   chan RPC
+	quitChannel  chan struct{}
 }
 
 func NewServer(opts *ServerOptions) (*Server, error) {
@@ -50,14 +56,21 @@ func NewServer(opts *ServerOptions) (*Server, error) {
 
 	chain := core.NewBlockchain(opts.Logger, genesisBlock())
 
+	peerCh := make(chan *TCPPeer)
+	tr := NewTCPTransport(opts.ListenAddress, peerCh)
+
 	s := &Server{
-		so:          opts,
-		memPool:     NewTxPool(256),
-		chain:       chain,
-		isValidator: opts.PrivateKey != nil,
-		rpcChannel:  make(chan RPC),
-		quitChannel: make(chan struct{}),
+		TCPTransport: tr,
+		peerCh:       peerCh,
+		peerMap:      make(map[net.Addr]*TCPPeer),
+		so:           opts,
+		memPool:      NewTxPool(256),
+		chain:        chain,
+		isValidator:  opts.PrivateKey != nil,
+		rpcChannel:   make(chan RPC),
+		quitChannel:  make(chan struct{}, 1),
 	}
+	s.TCPTransport.peerCh = peerCh
 
 	if opts.RPCProcessor == nil {
 		opts.RPCProcessor = s
@@ -67,22 +80,31 @@ func NewServer(opts *ServerOptions) (*Server, error) {
 		go s.validatorLoop()
 	}
 
-	s.boostrapNodes()
+	s.boostrapPeers()
 
 	return s, nil
 }
 
 func (s *Server) Start() {
-	s.initTransports()
+	_ = s.TCPTransport.Start()
+	s.boostrapPeers()
 
 free:
 	for {
 		select {
+		case peer := <-s.peerCh:
+			_, ok := s.peerMap[peer.conn.RemoteAddr()]
+
+			if !ok {
+				go peer.readLoop(s.rpcChannel)
+			}
+
 		case rpc := <-s.rpcChannel:
 			msg, err := s.so.RPCDecodeFunc(rpc)
 
 			if err != nil {
 				_ = s.so.Logger.Log("error", "cannot decode rpc")
+				continue
 			}
 
 			errMessage := s.so.RPCProcessor.ProcessMessage(msg)
@@ -99,21 +121,24 @@ free:
 	_ = s.so.Logger.Log("msg", "Server shutdown")
 }
 
-func (s *Server) boostrapNodes() {
-	for _, tr := range s.so.Transports {
-		if tr.Address() == s.so.Transport.Address() {
-			continue
-		}
+func (s *Server) boostrapPeers() {
+	for _, addr := range s.so.SeedNodes {
+		go func(addr string) {
+			dial, err := net.Dial("tcp", addr)
 
-		if connErr := s.so.Transport.Connect(tr); connErr != nil {
-			_ = s.so.Logger.Log("error", "could not connect to node: ", tr)
-		}
+			if err != nil {
+				return
+			}
 
-		s.sendGetStatusMessage(tr)
+			s.peerCh <- &TCPPeer{
+				conn: dial,
+			}
+
+		}(addr)
 	}
 }
 
-func (s *Server) sendGetStatusMessage(transport Transport) {
+func (s *Server) sendGetStatusMessage(peer *TCPPeer) {
 	getStatusMsg := &GetStatusMessage{}
 
 	buf := &bytes.Buffer{}
@@ -127,16 +152,12 @@ func (s *Server) sendGetStatusMessage(transport Transport) {
 	msg := NewMessage(MessageTypeGetStatus, buf.Bytes())
 	msgData, _ := msg.Bytes()
 
-	errSend := s.so.Transport.SendMessage(transport.Address(), msgData)
-
-	if errSend != nil {
-		_ = s.so.Logger.Log("error", "cannot send message to server")
-	}
+	fmt.Println(msgData)
 }
 
 func (s *Server) Broadcast(payload []byte) error {
-	for _, transport := range s.so.Transports {
-		err := transport.Broadcast(payload)
+	for _, peer := range s.peerMap {
+		err := peer.Send(payload)
 
 		if err != nil {
 			return err
@@ -187,7 +208,7 @@ func (s *Server) processBlock(b *core.Block) error {
 	return nil
 }
 
-func (s *Server) processGetStatusMessage(from NetAddress) error {
+func (s *Server) processGetStatusMessage(from net.Addr) error {
 	statusMessage := &StatusMessage{
 		ActualHeight: s.chain.Height(),
 		ID:           s.so.ID,
@@ -204,10 +225,12 @@ func (s *Server) processGetStatusMessage(from NetAddress) error {
 	msg := NewMessage(MessageTypeStatus, buf.Bytes())
 	data, _ := msg.Bytes()
 
-	return s.so.Transport.SendMessage(from, data)
+	fmt.Println(data)
+
+	return nil
 }
 
-func (s *Server) processStatusMessage(adr NetAddress, m *StatusMessage) error {
+func (s *Server) processStatusMessage(adr net.Addr, m *StatusMessage) error {
 	fmt.Println("I AM ", s.so.ID, ", ", "get from ", adr, " data: ", " ID: ", m.ID, " Height of chain: ", m.ActualHeight)
 
 	if s.chain.Height() >= m.ActualHeight {
@@ -226,28 +249,15 @@ func (s *Server) processStatusMessage(adr NetAddress, m *StatusMessage) error {
 	msg := NewMessage(MessageTypeGetBlocks, buf.Bytes())
 	data, _ := msg.Bytes()
 
-	errSend := s.so.Transport.SendMessage(adr, data)
 	fmt.Println("I AM ", s.so.ID, ", ", "wanna get blocks from ", adr, " : my chain height: ", getBlocksMessage.From, " To: ", getBlocksMessage.To)
 
-	if errSend != nil {
-		return errSend
-	}
+	fmt.Println(data)
 
 	return nil
 }
 
-func (s *Server) processGetBlocksMessage(from NetAddress, m *GetBlocksMessage) error {
+func (s *Server) processGetBlocksMessage(from net.Addr, m *GetBlocksMessage) error {
 	return nil
-}
-
-func (s *Server) initTransports() {
-	for _, transport := range s.so.Transports {
-		go func(transport Transport) {
-			for rpc := range transport.Consume() {
-				s.rpcChannel <- rpc
-			}
-		}(transport)
-	}
 }
 
 func (s *Server) validatorLoop() {
