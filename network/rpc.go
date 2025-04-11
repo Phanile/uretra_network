@@ -17,6 +17,7 @@ const (
 	MessageTypeGetBlocks
 	MessageTypeStatus
 	MessageTypeGetStatus
+	MessageTypeBlocks
 )
 
 type RPC struct {
@@ -79,6 +80,7 @@ func DefaultRPCDecodeFunc(rpc RPC) (*DecodedMessage, error) {
 			From: rpc.From,
 			Data: tx,
 		}, nil
+
 	case MessageTypeBlock:
 		b := &core.Block{}
 		err := b.Decode(core.NewGobBlockDecoder(bytes.NewReader(msg.Data)))
@@ -91,6 +93,7 @@ func DefaultRPCDecodeFunc(rpc RPC) (*DecodedMessage, error) {
 			From: rpc.From,
 			Data: b,
 		}, nil
+
 	case MessageTypeStatus:
 		statusMsg := &StatusMessage{}
 
@@ -123,6 +126,19 @@ func DefaultRPCDecodeFunc(rpc RPC) (*DecodedMessage, error) {
 		return &DecodedMessage{
 			From: rpc.From,
 			Data: getBlocksMsg,
+		}, nil
+
+	case MessageTypeBlocks:
+		blocksMsg := &BlocksMessage{}
+		err := gob.NewDecoder(bytes.NewReader(msg.Data)).Decode(blocksMsg)
+
+		if err != nil {
+			return nil, err
+		}
+
+		return &DecodedMessage{
+			From: rpc.From,
+			Data: blocksMsg,
 		}, nil
 
 	default:

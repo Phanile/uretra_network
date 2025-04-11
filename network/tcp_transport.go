@@ -2,6 +2,7 @@ package network
 
 import (
 	"bytes"
+	"io"
 	"net"
 )
 
@@ -16,10 +17,14 @@ func (peer *TCPPeer) Send(data []byte) error {
 }
 
 func (peer *TCPPeer) readLoop(rpcCh chan RPC) {
-	buf := make([]byte, 2048)
+	buf := make([]byte, 4096)
 
 	for {
 		n, err := peer.conn.Read(buf)
+
+		if err == io.EOF {
+			continue
+		}
 
 		if err != nil {
 			continue

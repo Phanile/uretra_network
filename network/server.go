@@ -3,6 +3,7 @@ package network
 import (
 	"bytes"
 	"encoding/gob"
+	"errors"
 	"fmt"
 	"github.com/go-kit/log"
 	"net"
@@ -93,11 +94,10 @@ free:
 	for {
 		select {
 		case peer := <-s.peerCh:
-			_, ok := s.peerMap[peer.conn.RemoteAddr()]
+			s.peerMap[peer.conn.RemoteAddr()] = peer
+			go peer.readLoop(s.rpcChannel)
 
-			if !ok {
-				go peer.readLoop(s.rpcChannel)
-			}
+			s.sendGetStatusMessage(peer)
 
 		case rpc := <-s.rpcChannel:
 			msg, err := s.so.RPCDecodeFunc(rpc)
@@ -152,10 +152,13 @@ func (s *Server) sendGetStatusMessage(peer *TCPPeer) {
 	msg := NewMessage(MessageTypeGetStatus, buf.Bytes())
 	msgData, _ := msg.Bytes()
 
-	fmt.Println(msgData)
+	_ = peer.Send(msgData)
 }
 
 func (s *Server) Broadcast(payload []byte) error {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
 	for _, peer := range s.peerMap {
 		err := peer.Send(payload)
 
@@ -179,6 +182,8 @@ func (s *Server) ProcessMessage(m *DecodedMessage) error {
 		return s.processStatusMessage(m.From, data)
 	case *GetBlocksMessage:
 		return s.processGetBlocksMessage(m.From, data)
+	case *BlocksMessage:
+		return s.processBlocksMessage(m.From, data)
 	}
 	return nil
 }
@@ -225,13 +230,20 @@ func (s *Server) processGetStatusMessage(from net.Addr) error {
 	msg := NewMessage(MessageTypeStatus, buf.Bytes())
 	data, _ := msg.Bytes()
 
-	fmt.Println(data)
+	s.mu.RLock()
+	defer s.mu.RUnlock()
 
-	return nil
+	peer, ok := s.peerMap[from]
+
+	if !ok {
+		return errors.New("peer not found")
+	}
+
+	return peer.Send(data)
 }
 
-func (s *Server) processStatusMessage(adr net.Addr, m *StatusMessage) error {
-	fmt.Println("I AM ", s.so.ID, ", ", "get from ", adr, " data: ", " ID: ", m.ID, " Height of chain: ", m.ActualHeight)
+func (s *Server) processStatusMessage(addr net.Addr, m *StatusMessage) error {
+	fmt.Println("I AM ", s.so.ID, ", ", "get from ", addr, " data: ", " ID: ", m.ID, " Height of chain: ", m.ActualHeight)
 
 	if s.chain.Height() >= m.ActualHeight {
 		return nil
@@ -243,20 +255,83 @@ func (s *Server) processStatusMessage(adr net.Addr, m *StatusMessage) error {
 	}
 
 	buf := &bytes.Buffer{}
-
 	_ = gob.NewEncoder(buf).Encode(getBlocksMessage)
 
 	msg := NewMessage(MessageTypeGetBlocks, buf.Bytes())
 	data, _ := msg.Bytes()
 
-	fmt.Println("I AM ", s.so.ID, ", ", "wanna get blocks from ", adr, " : my chain height: ", getBlocksMessage.From, " To: ", getBlocksMessage.To)
+	s.mu.RLock()
+	defer s.mu.RUnlock()
 
-	fmt.Println(data)
+	peer, ok := s.peerMap[addr]
+
+	if !ok {
+		return errors.New("peer not found")
+	}
+
+	fmt.Println("I AM ", s.so.ID, ", ", "wanna get blocks from ", addr, " : my chain height: ", getBlocksMessage.From, " To: ", getBlocksMessage.To)
+
+	return peer.Send(data)
+}
+
+func (s *Server) processGetBlocksMessage(from net.Addr, m *GetBlocksMessage) error {
+	var blocks []*core.Block
+	bcHeight := s.chain.Height()
+
+	if m.To == 0 {
+		for i := 0; i < int(bcHeight); i++ {
+			block, err := s.chain.Store.Get(uint32(i))
+
+			if err != nil {
+				return err
+			}
+
+			blocks = append(blocks, block)
+		}
+	}
+
+	blocksMsg := BlocksMessage{
+		blocks: blocks,
+	}
+
+	buf := &bytes.Buffer{}
+	err := gob.NewEncoder(buf).Encode(blocksMsg)
+
+	if err != nil {
+		return err
+	}
+
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	peer, ok := s.peerMap[from]
+	if !ok {
+		return errors.New("trying to send messageTypeBlocks - peer not found")
+	}
+
+	msg := NewMessage(MessageTypeBlocks, buf.Bytes())
+	data, err := msg.Bytes()
+
+	if err != nil {
+		return err
+	}
+
+	errSend := peer.Send(data)
+
+	if errSend != nil {
+		return errSend
+	}
 
 	return nil
 }
 
-func (s *Server) processGetBlocksMessage(from net.Addr, m *GetBlocksMessage) error {
+func (s *Server) processBlocksMessage(from net.Addr, m *BlocksMessage) error {
+	_ = s.so.Logger.Log("msg", "received ", len(m.blocks), " blocks from ", from)
+
+	for i := 0; i < len(m.blocks); i++ {
+		s.chain.AddBlock(m.blocks[i])
+	}
+
 	return nil
 }
 
