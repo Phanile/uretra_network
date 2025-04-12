@@ -4,7 +4,15 @@ import (
 	"bytes"
 	"io"
 	"net"
+	"time"
 )
+
+type PeerInfo struct {
+	Peer             *TCPPeer
+	BlockchainHeight uint32
+	LastSeen         time.Time
+	PingTime         time.Duration
+}
 
 type TCPPeer struct {
 	conn     net.Conn

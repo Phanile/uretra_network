@@ -10,6 +10,7 @@ import (
 	"os"
 	"sync"
 	"time"
+	"uretra-network/api"
 	"uretra-network/core"
 	"uretra-network/crypto"
 	"uretra-network/types"
@@ -18,14 +19,15 @@ import (
 var defaultBlockTime = 5 * time.Second
 
 type ServerOptions struct {
-	SeedNodes     []string
-	ListenAddress string
-	ID            string
-	Logger        log.Logger
-	RPCDecodeFunc RPCDecodeFunc
-	RPCProcessor  RPCProcessor
-	BlockTime     time.Duration
-	PrivateKey    *crypto.PrivateKey
+	SeedNodes        []string
+	ListenAddress    string
+	APIListenAddress string
+	ID               string
+	Logger           log.Logger
+	RPCDecodeFunc    RPCDecodeFunc
+	RPCProcessor     RPCProcessor
+	BlockTime        time.Duration
+	PrivateKey       *crypto.PrivateKey
 }
 
 type Server struct {
@@ -39,6 +41,7 @@ type Server struct {
 	isValidator  bool
 	rpcChannel   chan RPC
 	quitChannel  chan struct{}
+	txChannel    chan *core.Transaction
 }
 
 func NewServer(opts *ServerOptions) (*Server, error) {
@@ -55,7 +58,7 @@ func NewServer(opts *ServerOptions) (*Server, error) {
 		opts.Logger = log.With(opts.Logger, "ID", opts.ID)
 	}
 
-	chain := core.NewBlockchain(opts.Logger, genesisBlock())
+	chain := core.NewBlockchain(opts.Logger, genesisBlock(*opts.PrivateKey))
 
 	peerCh := make(chan *TCPPeer)
 	tr := NewTCPTransport(opts.ListenAddress, peerCh)
@@ -70,6 +73,7 @@ func NewServer(opts *ServerOptions) (*Server, error) {
 		isValidator:  opts.PrivateKey != nil,
 		rpcChannel:   make(chan RPC),
 		quitChannel:  make(chan struct{}, 1),
+		txChannel:    make(chan *core.Transaction),
 	}
 	s.TCPTransport.peerCh = peerCh
 
@@ -82,6 +86,19 @@ func NewServer(opts *ServerOptions) (*Server, error) {
 	}
 
 	s.boostrapPeers()
+
+	if len(s.so.APIListenAddress) > 0 {
+		apiServerConfig := api.ServerConfig{
+			ListenAddr: s.so.APIListenAddress,
+			Logger:     opts.Logger,
+		}
+
+		apiServer := api.NewServer(apiServerConfig, s.chain, s.txChannel)
+
+		go apiServer.Start()
+
+		_ = opts.Logger.Log("msg", "api server run on", opts.APIListenAddress)
+	}
 
 	return s, nil
 }
@@ -111,6 +128,13 @@ free:
 
 			if errMessage != nil {
 				_ = s.so.Logger.Log("error", "cannot process message from rpc channel")
+			}
+
+		case tx := <-s.txChannel:
+			err := s.processTransaction(tx)
+
+			if err != nil {
+				fmt.Println("process transaction error")
 			}
 
 		case <-s.quitChannel:
@@ -190,7 +214,7 @@ func (s *Server) ProcessMessage(m *DecodedMessage) error {
 
 func (s *Server) processTransaction(transaction *core.Transaction) error {
 	hash := transaction.Hash(core.TxHasher{})
-	_ = s.so.Logger.Log("msg", "adding new tx to mempool", "hash", hash, "mempool length", s.memPool.PendingCount())
+	_ = s.so.Logger.Log("msg", "adding new tx to mempool", "hash", hash, "mempool length", s.memPool.all.Count())
 
 	if s.memPool.Contains(hash) {
 		return nil
@@ -279,8 +303,8 @@ func (s *Server) processGetBlocksMessage(from net.Addr, m *GetBlocksMessage) err
 	bcHeight := s.chain.Height()
 
 	if m.To == 0 {
-		for i := 0; i < int(bcHeight); i++ {
-			block, err := s.chain.Store.Get(uint32(i))
+		for i := m.From; i <= bcHeight; i++ {
+			block, err := s.chain.Store.Get(i)
 
 			if err != nil {
 				return err
@@ -412,12 +436,16 @@ func (s *Server) createNewBlock() error {
 	return nil
 }
 
-func genesisBlock() *core.Block {
+func genesisBlock(key crypto.PrivateKey) *core.Block {
 	h := &core.Header{
 		Version:   1,
 		DataHash:  types.Hash{},
 		Timestamp: 0,
 		Height:    0,
 	}
-	return core.NewBlock(h, nil)
+
+	b := core.NewBlock(h, nil)
+	_ = b.Sign(key)
+
+	return b
 }
