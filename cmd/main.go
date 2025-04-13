@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"fmt"
+	"io"
 	"log"
 	"net/http"
 	"time"
@@ -11,19 +12,41 @@ import (
 	"uretra-network/network"
 )
 
+var (
+	defaultListenPort    = ":3228"
+	defaultAPIListenPort = ":3229"
+)
+
 func main() {
-	privateKey := crypto.GeneratePrivateKey()
 	go sendTestTransactions()
-	makeServer(&privateKey, "LOCAL", ":3000", []string{":3001"}, ":3228").Start()
+	makeServer().Start()
 }
 
-func makeServer(pk *crypto.PrivateKey, id string, addr string, seedNodes []string, APIListenAddr string) *network.Server {
+func makeServer() *network.Server {
+	network.SetConfigToDefaultPeers()
+	conf, errConf := network.GetConfig()
+
+	if errConf != nil {
+		panic("failed to load config")
+	}
+
+	ip, errIp := getPublicIP()
+
+	if errIp != nil {
+		panic("node is out network")
+	}
+
+	nodeId := "node_" + ip
+
+	privateKey := crypto.GeneratePrivateKey()
+
 	opts := network.ServerOptions{
-		APIListenAddress: APIListenAddr,
-		PrivateKey:       pk,
-		ID:               id,
-		SeedNodes:        seedNodes,
-		ListenAddress:    addr,
+		APIListenAddress: defaultAPIListenPort,
+		PrivateKey:       &privateKey,
+		ID:               nodeId,
+		SeedNodes:        conf.Peers,
+		ListenAddress:    defaultListenPort,
+		PeersConfig:      conf,
 	}
 
 	s, err := network.NewServer(&opts)
@@ -33,6 +56,24 @@ func makeServer(pk *crypto.PrivateKey, id string, addr string, seedNodes []strin
 	}
 
 	return s
+}
+
+func getPublicIP() (string, error) {
+	resp, err := http.Get("https://api.ipify.org?format=text")
+
+	if err != nil {
+		return "", err
+	}
+
+	defer resp.Body.Close()
+
+	ip, errRead := io.ReadAll(resp.Body)
+
+	if errRead != nil {
+		return "", errRead
+	}
+
+	return string(ip), nil
 }
 
 func sendTestTransactions() {
@@ -46,7 +87,7 @@ func sendTestTransactions() {
 		buf := &bytes.Buffer{}
 		_ = tx.Encode(core.NewGobTxEncoder(buf))
 
-		request, err := http.NewRequest("POST", "http://localhost:3228/tx", buf)
+		request, err := http.NewRequest("POST", "http://localhost:3229/tx", buf)
 
 		if err != nil {
 			fmt.Println("error while request tx to json server")

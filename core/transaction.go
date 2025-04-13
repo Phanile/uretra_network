@@ -8,6 +8,8 @@ import (
 type Transaction struct {
 	Data      []byte
 	From      crypto.PublicKey
+	To        crypto.PublicKey
+	Value     uint64
 	Signature *crypto.Signature
 	hash      types.Hash
 }

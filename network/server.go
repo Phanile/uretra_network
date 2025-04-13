@@ -28,6 +28,7 @@ type ServerOptions struct {
 	RPCProcessor     RPCProcessor
 	BlockTime        time.Duration
 	PrivateKey       *crypto.PrivateKey
+	PeersConfig      *PeersConfig
 }
 
 type Server struct {
@@ -75,6 +76,7 @@ func NewServer(opts *ServerOptions) (*Server, error) {
 		quitChannel:  make(chan struct{}, 1),
 		txChannel:    make(chan *core.Transaction),
 	}
+
 	s.TCPTransport.peerCh = peerCh
 
 	if opts.RPCProcessor == nil {
@@ -147,6 +149,10 @@ free:
 
 func (s *Server) boostrapPeers() {
 	for _, addr := range s.so.SeedNodes {
+		if addr == s.so.ListenAddress {
+			continue
+		}
+
 		go func(addr string) {
 			dial, err := net.Dial("tcp", addr)
 
