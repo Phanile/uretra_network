@@ -174,7 +174,19 @@ func (s *Server) testMessages() {
 	for {
 		time.Sleep(time.Second * 2)
 		for _, peer := range s.peerMap {
-			_ = peer.Send([]byte("hi from " + peer.conn.RemoteAddr().String() + "my time is " + time.Now().String()))
+			statusMessage := &StatusMessage{
+				ActualHeight: s.chain.Height(),
+				ID:           s.so.ID,
+			}
+
+			buf := &bytes.Buffer{}
+
+			_ = gob.NewEncoder(buf).Encode(statusMessage)
+
+			msg := NewMessage(MessageTypeStatus, buf.Bytes())
+			data, _ := msg.Bytes()
+			fmt.Println("sending to ", peer.conn.RemoteAddr().String(), " status message")
+			_ = peer.Send(data)
 		}
 	}
 }
