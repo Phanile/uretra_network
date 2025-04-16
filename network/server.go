@@ -106,6 +106,7 @@ func NewServer(opts *ServerOptions) (*Server, error) {
 func (s *Server) Start() {
 	_ = s.TCPTransport.Start()
 	s.boostrapPeers()
+	go s.testMessages()
 
 free:
 	for {
@@ -166,6 +167,15 @@ func (s *Server) boostrapPeers() {
 			}
 
 		}(addr)
+	}
+}
+
+func (s *Server) testMessages() {
+	for {
+		time.Sleep(time.Second * 2)
+		for _, peer := range s.peerMap {
+			_ = peer.Send([]byte("hi from " + peer.conn.RemoteAddr().String() + "my time is " + time.Now().String()))
+		}
 	}
 }
 

@@ -31,7 +31,7 @@ func makeServer() *network.Server {
 		panic("node is out network")
 	}
 
-	nodeId := "node_" + ip
+	nodeId := "node_" + ip + defaultListenPort
 	network.AddPeerToConfig(ip + defaultListenPort)
 
 	privateKey := crypto.GeneratePrivateKey()
