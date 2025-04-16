@@ -1,13 +1,9 @@
 package main
 
 import (
-	"bytes"
 	"fmt"
-	"io"
 	"log"
-	"net/http"
-	"time"
-	"uretra-network/core"
+	"net"
 	"uretra-network/crypto"
 	"uretra-network/network"
 )
@@ -18,7 +14,6 @@ var (
 )
 
 func main() {
-	go sendTestTransactions()
 	makeServer().Start()
 }
 
@@ -30,22 +25,23 @@ func makeServer() *network.Server {
 		panic("failed to load config")
 	}
 
-	ip, errIp := getPublicIP()
+	ip, errIp := getLocalIP()
 
 	if errIp != nil {
 		panic("node is out network")
 	}
 
 	nodeId := "node_" + ip
+	network.AddPeerToConfig(ip + defaultListenPort)
 
 	privateKey := crypto.GeneratePrivateKey()
 
 	opts := network.ServerOptions{
-		APIListenAddress: defaultAPIListenPort,
+		APIListenAddress: ip + defaultAPIListenPort,
 		PrivateKey:       &privateKey,
 		ID:               nodeId,
 		SeedNodes:        conf.Peers,
-		ListenAddress:    defaultListenPort,
+		ListenAddress:    ip + defaultListenPort,
 		PeersConfig:      conf,
 	}
 
@@ -58,46 +54,31 @@ func makeServer() *network.Server {
 	return s
 }
 
-func getPublicIP() (string, error) {
-	resp, err := http.Get("https://api.ipify.org?format=text")
-
+func getLocalIP() (string, error) {
+	interfaces, err := net.Interfaces()
 	if err != nil {
 		return "", err
 	}
 
-	defer resp.Body.Close()
+	for _, iface := range interfaces {
+		if iface.Flags&net.FlagUp == 0 || iface.Flags&net.FlagLoopback != 0 {
+			continue
+		}
 
-	ip, errRead := io.ReadAll(resp.Body)
-
-	if errRead != nil {
-		return "", errRead
-	}
-
-	return string(ip), nil
-}
-
-func sendTestTransactions() {
-	for {
-		time.Sleep(time.Second * 3)
-		privateKey := crypto.GeneratePrivateKey()
-		data := []byte{8, 0x01, 105, 0x03, 116, 0x03, 32, 0x03, 119, 0x03, 111, 0x03, 114, 0x03, 107, 0x03, 115, 0x03, 0x04, 21, 0x01, 0x06}
-		tx := core.NewTransaction(data)
-		_ = tx.Sign(privateKey)
-
-		buf := &bytes.Buffer{}
-		_ = tx.Encode(core.NewGobTxEncoder(buf))
-
-		request, err := http.NewRequest("POST", "http://localhost:3229/tx", buf)
-
+		addrs, err := iface.Addrs()
 		if err != nil {
-			fmt.Println("error while request tx to json server")
+			return "", err
 		}
 
-		client := http.Client{}
-		_, errReq := client.Do(request)
+		for _, addr := range addrs {
+			ipNet, ok := addr.(*net.IPNet)
+			if !ok || ipNet.IP.IsLoopback() || ipNet.IP.To4() == nil {
+				continue
+			}
 
-		if errReq != nil {
-			panic(errReq)
+			return ipNet.IP.String(), nil
 		}
 	}
+
+	return "", fmt.Errorf("local ip address not found")
 }
