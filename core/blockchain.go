@@ -7,12 +7,13 @@ import (
 )
 
 type Blockchain struct {
-	logger    log.Logger
-	Store     Storage
-	lock      sync.RWMutex
-	headers   []*Header
-	validator Validator
-	state     *State
+	logger        log.Logger
+	Store         Storage
+	lock          sync.RWMutex
+	headers       []*Header
+	validator     Validator
+	state         *State
+	accountsState *Accounts
 }
 
 func NewBlockchain(l log.Logger, genesis *Block) *Blockchain {
@@ -24,6 +25,7 @@ func NewBlockchain(l log.Logger, genesis *Block) *Blockchain {
 
 	bc.Store = NewMemoryStorage(bc)
 	bc.validator = NewBlockValidator(bc)
+	bc.accountsState = NewAccounts()
 
 	err := bc.addBlockWithoutValidation(genesis)
 
@@ -36,18 +38,6 @@ func NewBlockchain(l log.Logger, genesis *Block) *Blockchain {
 
 func (bc *Blockchain) AddBlock(b *Block) bool {
 	if bc.validator.ValidateBlock(b) {
-		for _, tr := range b.Transactions {
-			vm := NewVM(tr.Data, bc.state)
-			err := vm.Run()
-
-			if err != nil {
-				return false
-			}
-			fmt.Printf("state: %+v\n", bc.state)
-			result := vm.stack.Pop()
-
-			fmt.Println(result)
-		}
 
 		err := bc.addBlockWithoutValidation(b)
 
@@ -63,12 +53,62 @@ func (bc *Blockchain) AddBlock(b *Block) bool {
 
 func (bc *Blockchain) addBlockWithoutValidation(b *Block) error {
 	bc.lock.Lock()
-	bc.headers = append(bc.headers, b.Header)
 	defer bc.lock.Unlock()
+
+	validTxs := make([]*Transaction, 0, len(b.Transactions))
+
+	for i := 0; i < len(b.Transactions); i++ {
+		err := bc.handleTransaction(b.Transactions[i])
+
+		if err != nil {
+			_ = bc.logger.Log(
+				"msg", "transaction failed",
+				"hash", TxHasher{}.Hash(b.Transactions[i]),
+				"error", err,
+			)
+			continue
+		}
+
+		validTxs = append(validTxs, b.Transactions[i])
+	}
+
+	b.Transactions = validTxs
+	hash, hashErr := CalculateDataHash(b.Transactions)
+
+	if hashErr != nil {
+		return hashErr
+	}
+
+	b.Header.DataHash = hash
+
+	bc.headers = append(bc.headers, b.Header)
 
 	_ = bc.logger.Log("msg", "new block", "hash", b.Hash(HeaderHasher{}), "height", b.Header.Height, "txs", len(b.Transactions))
 
 	return bc.Store.Put(b)
+}
+
+func (bc *Blockchain) handleTransaction(t *Transaction) error {
+	if len(t.Data) > 0 {
+		vm := NewVM(t.Data, bc.state)
+		err := vm.Run()
+
+		if err != nil {
+			return err
+		}
+
+		fmt.Printf("state: %+v\n", bc.state)
+	}
+
+	if t.Value > 0 {
+		err := bc.accountsState.Transfer(t.From.Address(), t.To.Address(), t.Value)
+
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 func (bc *Blockchain) HasBlock(height uint32) bool {

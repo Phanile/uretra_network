@@ -3,7 +3,7 @@ package core
 import (
 	"bytes"
 	"crypto/sha256"
-	"encoding/binary"
+	"encoding/gob"
 	"uretra-network/types"
 )
 
@@ -24,10 +24,9 @@ type TxHasher struct {
 func (TxHasher) Hash(tx *Transaction) types.Hash {
 	buf := &bytes.Buffer{}
 
-	errData := binary.Write(buf, binary.LittleEndian, tx.Data)
-	//errFrom := binary.Write(buf, binary.LittleEndian, tx.From)
+	err := gob.NewEncoder(buf).Encode(tx)
 
-	if errData != nil {
+	if err != nil {
 		panic("Tx is not hashable")
 	}
 

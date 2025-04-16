@@ -114,6 +114,8 @@ free:
 		select {
 		case peer := <-s.peerCh:
 			s.peerMap[peer.conn.RemoteAddr()] = peer
+			AddPeerToConfig(peer.conn.RemoteAddr().String())
+
 			go peer.readLoop(s.rpcChannel)
 
 			s.sendGetStatusMessage(peer)
@@ -452,6 +454,15 @@ func genesisBlock(key crypto.PrivateKey) *core.Block {
 
 	b := core.NewBlock(h, nil)
 	_ = b.Sign(key)
+
+	coinbase := crypto.ZeroPublicKey()
+
+	tx := core.NewTransaction(nil)
+	tx.From = coinbase
+	tx.To = coinbase
+	tx.Value = 1000000
+
+	b.Transactions = append(b.Transactions, tx)
 
 	return b
 }

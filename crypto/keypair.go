@@ -59,6 +59,10 @@ func (pk PrivateKey) PublicKey() PublicKey {
 }
 
 func (pk PublicKey) Address() types.Address {
+	if pk.Key == nil {
+		return types.Address{}
+	}
+
 	sum := sha256.Sum256(elliptic.MarshalCompressed(pk.Key, pk.Key.X, pk.Key.Y))
 
 	return types.AddressFromBytes(sum[len(sum)-20:])
@@ -116,6 +120,16 @@ func (pk PrivateKey) Sign(data []byte) (*Signature, error) {
 
 func (signature *Signature) VerifySignature(pk *PublicKey, data []byte) bool {
 	return ecdsa.Verify(pk.Key, data, signature.r, signature.s)
+}
+
+func ZeroPublicKey() PublicKey {
+	return PublicKey{
+		Key: &ecdsa.PublicKey{
+			Curve: elliptic.P256(),
+			X:     big.NewInt(0),
+			Y:     big.NewInt(0),
+		},
+	}
 }
 
 func init() {
