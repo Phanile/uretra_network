@@ -84,7 +84,7 @@ func NewServer(opts *ServerOptions) (*Server, error) {
 	}
 
 	if s.isValidator {
-		go s.validatorLoop()
+		//go s.validatorLoop()
 	}
 
 	if len(s.so.APIListenAddress) > 0 {
@@ -111,9 +111,9 @@ free:
 	for {
 		select {
 		case peer := <-s.peerCh:
-			s.peerMap[peer.conn.LocalAddr()] = peer
-			AddPeerToConfig(peer.conn.LocalAddr().String())
-			fmt.Println("ADDED NEW PEER: ", peer.conn.LocalAddr().String())
+			s.peerMap[peer.conn.RemoteAddr()] = peer
+			AddPeerToConfig(peer.conn.RemoteAddr().String())
+			fmt.Println("ADDED NEW PEER: ", peer.conn.RemoteAddr().String())
 
 			go peer.readLoop(s.rpcChannel)
 
