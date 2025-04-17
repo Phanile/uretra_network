@@ -1,9 +1,11 @@
 package core
 
 import (
+	"encoding/hex"
 	"fmt"
 	"github.com/go-kit/log"
 	"sync"
+	"uretra-network/types"
 )
 
 type Blockchain struct {
@@ -26,6 +28,12 @@ func NewBlockchain(l log.Logger, genesis *Block) *Blockchain {
 	bc.Store = NewMemoryStorage(bc)
 	bc.validator = NewBlockValidator(bc)
 	bc.accountsState = NewAccounts()
+
+	// TEST
+	addrBytes, _ := hex.DecodeString("1e49e5ae4bf41f88edd68f42e22891738d21af10")
+	bc.accountsState.NewAccount(types.AddressFromBytes(addrBytes))
+	_ = bc.accountsState.AddBalance(types.AddressFromBytes(addrBytes), 1000000)
+	// TEST
 
 	err := bc.addBlockWithoutValidation(genesis)
 
@@ -135,4 +143,8 @@ func (bc *Blockchain) SetValidator(val Validator) {
 
 func (bc *Blockchain) Height() uint32 {
 	return uint32(len(bc.headers) - 1)
+}
+
+func (bc *Blockchain) GetAccounts() *Accounts {
+	return bc.accountsState
 }
