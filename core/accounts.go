@@ -2,8 +2,8 @@ package core
 
 import (
 	"errors"
+	"github.com/Phanile/uretra_network/types"
 	"sync"
-	"uretra-network/types"
 )
 
 var (

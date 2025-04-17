@@ -4,9 +4,9 @@ import (
 	"bytes"
 	"encoding/gob"
 	"fmt"
+	"github.com/Phanile/uretra_network/core"
 	"io"
 	"net"
-	"uretra-network/core"
 )
 
 type MessageType byte

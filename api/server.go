@@ -2,10 +2,10 @@ package api
 
 import (
 	"encoding/gob"
+	"github.com/Phanile/uretra_network/core"
 	"github.com/go-kit/log"
 	"github.com/labstack/echo/v4"
 	"net/http"
-	"uretra-network/core"
 )
 
 type ServerConfig struct {

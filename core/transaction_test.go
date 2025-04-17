@@ -2,9 +2,9 @@ package core
 
 import (
 	"bytes"
+	"github.com/Phanile/uretra_network/crypto"
 	"github.com/stretchr/testify/assert"
 	"testing"
-	"uretra-network/crypto"
 )
 
 func TestTransaction_Sign(t *testing.T) {

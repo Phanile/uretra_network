@@ -5,15 +5,15 @@ import (
 	"encoding/gob"
 	"errors"
 	"fmt"
+	"github.com/Phanile/uretra_network/api"
+	"github.com/Phanile/uretra_network/core"
+	"github.com/Phanile/uretra_network/crypto"
+	"github.com/Phanile/uretra_network/types"
 	"github.com/go-kit/log"
 	"net"
 	"os"
 	"sync"
 	"time"
-	"uretra-network/api"
-	"uretra-network/core"
-	"uretra-network/crypto"
-	"uretra-network/types"
 )
 
 var defaultBlockTime = 5 * time.Second

@@ -1,4 +1,4 @@
-module uretra-network
+module github.com/Phanile/uretra_network
 
 go 1.23.5
 

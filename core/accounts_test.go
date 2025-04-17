@@ -1,9 +1,9 @@
 package core
 
 import (
+	"github.com/Phanile/uretra_network/crypto"
 	"github.com/stretchr/testify/assert"
 	"testing"
-	"uretra-network/crypto"
 )
 
 func TestAccounts_GetBalance(t *testing.T) {

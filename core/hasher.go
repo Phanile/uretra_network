@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"crypto/sha256"
 	"encoding/gob"
-	"uretra-network/types"
+	"github.com/Phanile/uretra_network/types"
 )
 
 type HeaderHasher struct {

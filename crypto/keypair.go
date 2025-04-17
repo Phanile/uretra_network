@@ -6,8 +6,8 @@ import (
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/gob"
+	"github.com/Phanile/uretra_network/types"
 	"math/big"
-	"uretra-network/types"
 )
 
 type PrivateKey struct {

@@ -1,11 +1,11 @@
 package core
 
 import (
+	"github.com/Phanile/uretra_network/types"
 	"github.com/go-kit/log"
 	"github.com/stretchr/testify/assert"
 	"os"
 	"testing"
-	"uretra-network/types"
 )
 
 func TestStorage_Get(t *testing.T) {

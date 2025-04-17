@@ -1,8 +1,8 @@
 package core
 
 import (
-	"uretra-network/crypto"
-	"uretra-network/types"
+	"github.com/Phanile/uretra_network/crypto"
+	"github.com/Phanile/uretra_network/types"
 )
 
 type Transaction struct {

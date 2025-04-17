@@ -3,11 +3,11 @@ package core
 import (
 	"bytes"
 	"fmt"
+	"github.com/Phanile/uretra_network/crypto"
+	"github.com/Phanile/uretra_network/types"
 	"github.com/stretchr/testify/assert"
 	"testing"
 	"time"
-	"uretra-network/crypto"
-	"uretra-network/types"
 )
 
 func TestBlock_Hash(t *testing.T) {

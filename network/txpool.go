@@ -1,9 +1,9 @@
 package network
 
 import (
+	"github.com/Phanile/uretra_network/core"
+	"github.com/Phanile/uretra_network/types"
 	"sync"
-	"uretra-network/core"
-	"uretra-network/types"
 )
 
 type TxPool struct {

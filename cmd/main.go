@@ -3,13 +3,13 @@ package main
 import (
 	"bytes"
 	"fmt"
+	"github.com/Phanile/uretra_network/core"
+	"github.com/Phanile/uretra_network/crypto"
+	"github.com/Phanile/uretra_network/network"
 	"io"
 	"log"
 	"net/http"
 	"time"
-	"uretra-network/core"
-	"uretra-network/crypto"
-	"uretra-network/network"
 )
 
 var (

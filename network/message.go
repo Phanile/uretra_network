@@ -1,6 +1,6 @@
 package network
 
-import "uretra-network/core"
+import "github.com/Phanile/uretra_network/core"
 
 type BlocksMessage struct {
 	blocks []*core.Block
