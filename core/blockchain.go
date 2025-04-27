@@ -3,9 +3,9 @@ package core
 import (
 	"encoding/hex"
 	"fmt"
+	"github.com/Phanile/uretra_network/types"
 	"github.com/go-kit/log"
 	"sync"
-	"uretra-network/types"
 )
 
 type Blockchain struct {
@@ -109,7 +109,7 @@ func (bc *Blockchain) handleTransaction(t *Transaction) error {
 	}
 
 	if t.Value > 0 {
-		err := bc.accountsState.Transfer(t.From.Address(), t.To.Address(), t.Value)
+		err := bc.accountsState.Transfer(t.From.Address(), t.To, t.Value)
 
 		if err != nil {
 			return err

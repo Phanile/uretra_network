@@ -8,20 +8,32 @@ import (
 type Transaction struct {
 	Data      []byte
 	From      crypto.PublicKey
-	To        crypto.PublicKey
+	To        types.Address
 	Value     uint64
+	Nonce     uint64
 	Signature *crypto.Signature
 	hash      types.Hash
 }
 
-func NewTransaction(data []byte) *Transaction {
+func NewTransaction(
+	data []byte,
+	from crypto.PublicKey,
+	to types.Address,
+	value uint64,
+	nonce uint64) *Transaction {
 	return &Transaction{
-		Data: data,
+		Data:  data,
+		From:  from,
+		To:    to,
+		Value: value,
+		Nonce: nonce,
 	}
 }
 
 func (tx *Transaction) Sign(key crypto.PrivateKey) error {
-	sign, err := key.Sign(tx.Data)
+	txHash := tx.Hash(TxHasher{})
+
+	sign, err := key.Sign(txHash[:])
 
 	if err != nil {
 		return err
@@ -38,12 +50,14 @@ func (tx *Transaction) Verify() bool {
 		return false
 	}
 
-	return tx.Signature.VerifySignature(&tx.From, tx.Data)
+	txHash := tx.Hash(TxHasher{})
+
+	return tx.Signature.VerifySignature(&tx.From, txHash[:])
 }
 
 func (tx *Transaction) Hash(hasher Hasher[*Transaction]) types.Hash {
 	if tx.hash.IsEmptyOrZero() {
-		tx.hash = hasher.Hash(tx)
+		return hasher.Hash(tx)
 	}
 
 	return tx.hash

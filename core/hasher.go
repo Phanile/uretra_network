@@ -27,8 +27,11 @@ func (TxHasher) Hash(tx *Transaction) types.Hash {
 	err := gob.NewEncoder(buf).Encode(tx)
 
 	if err != nil {
-		panic("Tx is not hashable")
+		panic("tx is not hashable")
 	}
 
-	return sha256.Sum256(buf.Bytes())
+	hash := sha256.Sum256(buf.Bytes())
+	tx.hash = types.HashFromBytes(hash[:])
+
+	return tx.hash
 }

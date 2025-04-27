@@ -2,7 +2,9 @@ package api
 
 import (
 	"encoding/gob"
+	"encoding/hex"
 	"github.com/Phanile/uretra_network/core"
+	"github.com/Phanile/uretra_network/types"
 	"github.com/go-kit/log"
 	"github.com/labstack/echo/v4"
 	"net/http"

@@ -16,7 +16,10 @@ import (
 	"time"
 )
 
-var defaultBlockTime = 5 * time.Second
+const (
+	defaultListenPort    = ":3228"
+	defaultAPIListenPort = ":3229"
+)
 
 type ServerOptions struct {
 	SeedNodes        []string
@@ -26,7 +29,6 @@ type ServerOptions struct {
 	Logger           log.Logger
 	RPCDecodeFunc    RPCDecodeFunc
 	RPCProcessor     RPCProcessor
-	BlockTime        time.Duration
 	PrivateKey       *crypto.PrivateKey
 	PeersConfig      *PeersConfig
 }
@@ -45,11 +47,44 @@ type Server struct {
 	txChannel    chan *core.Transaction
 }
 
-func NewServer(opts *ServerOptions) (*Server, error) {
-	if opts.BlockTime == time.Duration(0) {
-		opts.BlockTime = defaultBlockTime
+func MakeServer() *Server {
+	SetConfigToDefaultPeers()
+	conf, errConf := GetConfig()
+
+	if errConf != nil {
+		panic("failed to load config")
 	}
 
+	ip, errIp := GetPublicIP()
+
+	if errIp != nil {
+		panic("node is out network")
+	}
+
+	nodeId := "node_" + ip + defaultListenPort
+	AddPeerToConfig(ip + defaultListenPort)
+
+	privateKey := crypto.GeneratePrivateKey()
+
+	opts := ServerOptions{
+		APIListenAddress: ip + defaultAPIListenPort,
+		PrivateKey:       &privateKey,
+		ID:               nodeId,
+		SeedNodes:        conf.Peers,
+		ListenAddress:    ip + defaultListenPort,
+		PeersConfig:      conf,
+	}
+
+	s, err := NewServer(&opts)
+
+	if err != nil {
+		panic(err)
+	}
+
+	return s
+}
+
+func NewServer(opts *ServerOptions) (*Server, error) {
 	if opts.RPCDecodeFunc == nil {
 		opts.RPCDecodeFunc = DefaultRPCDecodeFunc
 	}
@@ -388,17 +423,6 @@ func (s *Server) processBlocksMessage(from net.Addr, m *BlocksMessage) error {
 	return nil
 }
 
-func (s *Server) validatorLoop() {
-	ticker := time.NewTicker(s.so.BlockTime)
-
-	_ = s.so.Logger.Log("msg", "starting validator loop")
-
-	for {
-		<-ticker.C
-		_ = s.createNewBlock()
-	}
-}
-
 func (s *Server) broadcastTx(tx *core.Transaction) error {
 	buf := &bytes.Buffer{}
 	err := tx.Encode(core.NewGobTxEncoder(buf))
@@ -478,11 +502,7 @@ func genesisBlock(key crypto.PrivateKey) *core.Block {
 
 	coinbase := crypto.ZeroPublicKey()
 
-	tx := core.NewTransaction(nil)
-	tx.From = coinbase
-	tx.To = coinbase
-	tx.Value = 1000000
-
+	tx := core.NewTransaction(nil, coinbase, coinbase.Address(), 1000000, 1)
 	b.Transactions = append(b.Transactions, tx)
 
 	return b
