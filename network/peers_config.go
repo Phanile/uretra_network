@@ -19,6 +19,12 @@ func AddPeerToConfig(peerAddr string) {
 		panic(err)
 	}
 
+	for _, peer := range conf.Peers {
+		if peer == peerAddr {
+			return
+		}
+	}
+
 	conf.Peers = append(conf.Peers, peerAddr)
 
 	SaveConfig(conf)
@@ -101,7 +107,7 @@ func SetConfigToDefaultPeers() {
 		panic(err)
 	}
 
-	conf.Peers = []string{"89.151.159.224:3228"}
+	conf.Peers = []string{"192.168.3.2:3228"}
 
 	SaveConfig(conf)
 }

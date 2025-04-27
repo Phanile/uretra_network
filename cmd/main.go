@@ -18,7 +18,6 @@ var (
 )
 
 func main() {
-	go sendTestTransactions()
 	makeServer().Start()
 }
 
@@ -36,16 +35,17 @@ func makeServer() *network.Server {
 		panic("node is out network")
 	}
 
-	nodeId := "node_" + ip
+	nodeId := "node_" + ip + defaultListenPort
+	network.AddPeerToConfig(ip + defaultListenPort)
 
 	privateKey := crypto.GeneratePrivateKey()
 
 	opts := network.ServerOptions{
-		APIListenAddress: defaultAPIListenPort,
+		APIListenAddress: ip + defaultAPIListenPort,
 		PrivateKey:       &privateKey,
 		ID:               nodeId,
 		SeedNodes:        conf.Peers,
-		ListenAddress:    defaultListenPort,
+		ListenAddress:    ip + defaultListenPort,
 		PeersConfig:      conf,
 	}
 

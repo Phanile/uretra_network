@@ -84,10 +84,8 @@ func NewServer(opts *ServerOptions) (*Server, error) {
 	}
 
 	if s.isValidator {
-		go s.validatorLoop()
+		//go s.validatorLoop()
 	}
-
-	s.boostrapPeers()
 
 	if len(s.so.APIListenAddress) > 0 {
 		apiServerConfig := api.ServerConfig{
@@ -108,6 +106,7 @@ func NewServer(opts *ServerOptions) (*Server, error) {
 func (s *Server) Start() {
 	_ = s.TCPTransport.Start()
 	s.boostrapPeers()
+	go s.testMessages()
 
 free:
 	for {
@@ -115,6 +114,7 @@ free:
 		case peer := <-s.peerCh:
 			s.peerMap[peer.conn.RemoteAddr()] = peer
 			AddPeerToConfig(peer.conn.RemoteAddr().String())
+			fmt.Println("ADDED NEW PEER: ", peer.conn.RemoteAddr().String())
 
 			go peer.readLoop(s.rpcChannel)
 
@@ -167,6 +167,27 @@ func (s *Server) boostrapPeers() {
 			}
 
 		}(addr)
+	}
+}
+
+func (s *Server) testMessages() {
+	for {
+		time.Sleep(time.Second * 2)
+		for _, peer := range s.peerMap {
+			statusMessage := &StatusMessage{
+				ActualHeight: s.chain.Height(),
+				ID:           s.so.ID,
+			}
+
+			buf := &bytes.Buffer{}
+
+			_ = gob.NewEncoder(buf).Encode(statusMessage)
+
+			msg := NewMessage(MessageTypeStatus, buf.Bytes())
+			data, _ := msg.Bytes()
+			fmt.Println("sending to ", peer.conn.RemoteAddr().String(), " status message")
+			_ = peer.Send(data)
+		}
 	}
 }
 
