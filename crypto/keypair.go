@@ -5,7 +5,10 @@ import (
 	"crypto/elliptic"
 	"crypto/rand"
 	"crypto/sha256"
+	"crypto/x509"
 	"encoding/gob"
+	"encoding/pem"
+	"errors"
 	"github.com/Phanile/uretra_network/types"
 	"math/big"
 )
@@ -24,6 +27,20 @@ func GeneratePrivateKey() PrivateKey {
 	return PrivateKey{
 		key: key,
 	}
+}
+
+func (pk PrivateKey) Bytes() ([]byte, error) {
+	if pk.key == nil {
+		return nil, errors.New("private key is nil")
+	}
+	x509Encoded, err := x509.MarshalECPrivateKey(pk.key)
+	if err != nil {
+		return nil, err
+	}
+	return pem.EncodeToMemory(&pem.Block{
+		Type:  "EC PRIVATE KEY",
+		Bytes: x509Encoded,
+	}), nil
 }
 
 type PublicKey struct {
@@ -56,6 +73,20 @@ func (pk PrivateKey) PublicKey() PublicKey {
 	return PublicKey{
 		Key: &pk.key.PublicKey,
 	}
+}
+
+func (pk PublicKey) Bytes() ([]byte, error) {
+	if pk.Key == nil {
+		return nil, errors.New("public key is nil")
+	}
+	x509Encoded, err := x509.MarshalPKIXPublicKey(pk.Key)
+	if err != nil {
+		return nil, err
+	}
+	return pem.EncodeToMemory(&pem.Block{
+		Type:  "PUBLIC KEY",
+		Bytes: x509Encoded,
+	}), nil
 }
 
 func (pk PublicKey) Address() types.Address {
@@ -130,6 +161,30 @@ func ZeroPublicKey() PublicKey {
 			Y:     big.NewInt(0),
 		},
 	}
+}
+
+func PrivateKeyFromBytes(b []byte) (PrivateKey, error) {
+	block, _ := pem.Decode(b)
+	if block == nil {
+		return PrivateKey{}, errors.New("failed to parse PEM block")
+	}
+	key, err := x509.ParseECPrivateKey(block.Bytes)
+	if err != nil {
+		return PrivateKey{}, err
+	}
+	return PrivateKey{key: key}, nil
+}
+
+func PublicKeyFromBytes(b []byte) (PublicKey, error) {
+	block, _ := pem.Decode(b)
+	if block == nil {
+		return PublicKey{}, errors.New("failed to parse PEM block")
+	}
+	pub, err := x509.ParsePKIXPublicKey(block.Bytes)
+	if err != nil {
+		return PublicKey{}, err
+	}
+	return PublicKey{Key: pub.(*ecdsa.PublicKey)}, nil
 }
 
 func init() {
