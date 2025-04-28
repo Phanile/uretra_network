@@ -8,10 +8,6 @@ on:
 jobs:
   build:
     runs-on: windows-latest
-    defaults:
-      run:
-        shell: cmd
-        working-directory: uretra_network
 
     steps:
       - uses: actions/checkout@v4
@@ -23,7 +19,9 @@ jobs:
 
       - name: Build
         run: |
-          go build -o node.exe -ldflags="-X 'main.configPath=config/config.json'" cmd/main.go
+          cd uretra_network
+          go build -o ../node.exe -ldflags="-X 'main.configPath=config/config.json'" cmd/main.go
+          mv ../node.exe node.exe
 
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
