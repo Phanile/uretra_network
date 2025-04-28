@@ -3,6 +3,7 @@ package core
 import (
 	"encoding/hex"
 	"fmt"
+	"github.com/Phanile/uretra_network/crypto"
 	"github.com/Phanile/uretra_network/types"
 	"github.com/go-kit/log"
 	"sync"
@@ -29,8 +30,10 @@ func NewBlockchain(l log.Logger, genesis *Block) *Blockchain {
 	bc.validator = NewBlockValidator(bc)
 	bc.accountsState = NewAccounts()
 
+	bc.accountsState.NewAccount(crypto.ZeroPublicKey().Address()) //coinbase account
+
 	// TEST
-	addrBytes, _ := hex.DecodeString("1e49e5ae4bf41f88edd68f42e22891738d21af10")
+	addrBytes, _ := hex.DecodeString("b2f1c7c07b3eb376ad89f3e8afba8b005616cb63")
 	bc.accountsState.NewAccount(types.AddressFromBytes(addrBytes))
 	_ = bc.accountsState.AddBalance(types.AddressFromBytes(addrBytes), 1000000)
 	// TEST

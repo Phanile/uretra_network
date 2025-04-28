@@ -13,7 +13,6 @@ import (
 	"net"
 	"os"
 	"sync"
-	"time"
 )
 
 const (
@@ -55,7 +54,7 @@ func MakeServer() *Server {
 		panic("failed to load config")
 	}
 
-	ip, errIp := GetPublicIP()
+	ip, errIp := GetLocalIP()
 
 	if errIp != nil {
 		panic("node is out network")
@@ -141,7 +140,6 @@ func NewServer(opts *ServerOptions) (*Server, error) {
 func (s *Server) Start() {
 	_ = s.TCPTransport.Start()
 	s.boostrapPeers()
-	go s.testMessages()
 
 free:
 	for {
@@ -205,27 +203,6 @@ func (s *Server) boostrapPeers() {
 	}
 }
 
-func (s *Server) testMessages() {
-	for {
-		time.Sleep(time.Second * 2)
-		for _, peer := range s.peerMap {
-			statusMessage := &StatusMessage{
-				ActualHeight: s.chain.Height(),
-				ID:           s.so.ID,
-			}
-
-			buf := &bytes.Buffer{}
-
-			_ = gob.NewEncoder(buf).Encode(statusMessage)
-
-			msg := NewMessage(MessageTypeStatus, buf.Bytes())
-			data, _ := msg.Bytes()
-			fmt.Println("sending to ", peer.conn.RemoteAddr().String(), " status message")
-			_ = peer.Send(data)
-		}
-	}
-}
-
 func (s *Server) sendGetStatusMessage(peer *TCPPeer) {
 	getStatusMsg := &GetStatusMessage{}
 
@@ -278,7 +255,7 @@ func (s *Server) ProcessMessage(m *DecodedMessage) error {
 
 func (s *Server) processTransaction(transaction *core.Transaction) error {
 	hash := transaction.Hash(core.TxHasher{})
-	_ = s.so.Logger.Log("msg", "adding new tx to mempool", "hash", hash, "mempool length", s.memPool.all.Count())
+	_ = s.so.Logger.Log("msg", "receive new transaction", "hash", hash, "mempool length", s.memPool.all.Count())
 
 	if s.memPool.Contains(hash) {
 		return nil
@@ -502,7 +479,7 @@ func genesisBlock(key crypto.PrivateKey) *core.Block {
 
 	coinbase := crypto.ZeroPublicKey()
 
-	tx := core.NewTransaction(nil, coinbase, coinbase.Address(), 1000000, 1)
+	tx := core.NewTransaction(nil, coinbase, coinbase.Address(), 1000000, 0)
 	b.Transactions = append(b.Transactions, tx)
 
 	return b

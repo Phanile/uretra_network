@@ -107,7 +107,7 @@ func SetConfigToDefaultPeers() {
 		panic(err)
 	}
 
-	conf.Peers = []string{"89.151.179.176:3228"}
+	conf.Peers = []string{"192.168.3.2:3228"}
 
 	SaveConfig(conf)
 }

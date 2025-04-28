@@ -3,7 +3,7 @@ package core
 import (
 	"bytes"
 	"crypto/sha256"
-	"encoding/gob"
+	"encoding/binary"
 	"github.com/Phanile/uretra_network/types"
 )
 
@@ -24,14 +24,11 @@ type TxHasher struct {
 func (TxHasher) Hash(tx *Transaction) types.Hash {
 	buf := &bytes.Buffer{}
 
-	err := gob.NewEncoder(buf).Encode(tx)
+	binary.Write(buf, binary.LittleEndian, tx.Data)
+	binary.Write(buf, binary.LittleEndian, tx.From)
+	binary.Write(buf, binary.LittleEndian, tx.To)
+	binary.Write(buf, binary.LittleEndian, tx.Value)
+	binary.Write(buf, binary.LittleEndian, tx.Nonce)
 
-	if err != nil {
-		panic("tx is not hashable")
-	}
-
-	hash := sha256.Sum256(buf.Bytes())
-	tx.hash = types.HashFromBytes(hash[:])
-
-	return tx.hash
+	return sha256.Sum256(buf.Bytes())
 }

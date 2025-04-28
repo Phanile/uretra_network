@@ -46,6 +46,14 @@ func (tx *Transaction) Sign(key crypto.PrivateKey) error {
 }
 
 func (tx *Transaction) Verify() bool {
+	if tx.From == crypto.ZeroPublicKey() && tx.To == crypto.ZeroPublicKey().Address() { //coinbase transactions
+		return true
+	}
+
+	if tx.From.Address() == tx.To {
+		return false
+	}
+
 	if tx.Signature == nil {
 		return false
 	}

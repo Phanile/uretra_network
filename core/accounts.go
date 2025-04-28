@@ -2,6 +2,7 @@ package core
 
 import (
 	"errors"
+	"github.com/Phanile/uretra_network/crypto"
 	"github.com/Phanile/uretra_network/types"
 	"sync"
 )
@@ -70,6 +71,13 @@ func (a *Accounts) GetBalance(addr types.Address) (uint64, error) {
 func (a *Accounts) Transfer(from, to types.Address, value uint64) error {
 	a.mu.Lock()
 	defer a.mu.Unlock()
+
+	if from == crypto.ZeroPublicKey().Address() && to == crypto.ZeroPublicKey().Address() {
+		fromAcc, _ := a.getNoLockAccount(from)
+		fromAcc.Balance += value
+
+		return nil
+	}
 
 	fromAcc, errGetAcc := a.getNoLockAccount(from)
 
