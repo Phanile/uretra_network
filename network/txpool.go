@@ -6,48 +6,6 @@ import (
 	"sync"
 )
 
-type TxPool struct {
-	all       *TxSortedMap
-	pending   *TxSortedMap
-	maxLength uint16
-}
-
-func NewTxPool(maxLength uint16) *TxPool {
-	return &TxPool{
-		maxLength: maxLength,
-		all:       NewTxSortedMap(),
-		pending:   NewTxSortedMap(),
-	}
-}
-
-func (p *TxPool) Add(tr *core.Transaction) bool {
-	if p.all.Count() == p.maxLength {
-		return false
-	}
-
-	if p.all.Contains(tr.Hash(core.TxHasher{})) {
-		return false
-	}
-
-	return p.all.Add(tr) && p.pending.Add(tr)
-}
-
-func (p *TxPool) Contains(hash types.Hash) bool {
-	return p.all.Contains(hash)
-}
-
-func (p *TxPool) ClearPending() {
-	p.pending.Clear()
-}
-
-func (p *TxPool) PendingCount() uint16 {
-	return p.pending.Count()
-}
-
-func (p *TxPool) Pending() []*core.Transaction {
-	return p.pending.txs.Data
-}
-
 type TxSortedMap struct {
 	lock   sync.RWMutex
 	lookup map[types.Hash]*core.Transaction

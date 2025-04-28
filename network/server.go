@@ -13,11 +13,17 @@ import (
 	"net"
 	"os"
 	"sync"
+	"time"
 )
 
 const (
 	defaultListenPort    = ":3228"
 	defaultAPIListenPort = ":3229"
+)
+
+const (
+	defaultBlockTime              = 10
+	maxTransactionsCountInMemPool = 5
 )
 
 type ServerOptions struct {
@@ -38,7 +44,7 @@ type Server struct {
 	mu           sync.RWMutex
 	peerMap      map[net.Addr]*TCPPeer
 	so           *ServerOptions
-	memPool      *TxPool
+	memPool      *TxSortedMap
 	chain        *core.Blockchain
 	isValidator  bool
 	rpcChannel   chan RPC
@@ -103,7 +109,7 @@ func NewServer(opts *ServerOptions) (*Server, error) {
 		peerCh:       peerCh,
 		peerMap:      make(map[net.Addr]*TCPPeer),
 		so:           opts,
-		memPool:      NewTxPool(256),
+		memPool:      NewTxSortedMap(),
 		chain:        chain,
 		isValidator:  opts.PrivateKey != nil,
 		rpcChannel:   make(chan RPC),
@@ -118,7 +124,7 @@ func NewServer(opts *ServerOptions) (*Server, error) {
 	}
 
 	if s.isValidator {
-		//go s.validatorLoop()
+		go s.createBlockLoop()
 	}
 
 	if len(s.so.APIListenAddress) > 0 {
@@ -203,6 +209,24 @@ func (s *Server) boostrapPeers() {
 	}
 }
 
+func (s *Server) createBlockLoop() {
+	ticker := time.NewTicker(time.Second * defaultBlockTime)
+
+	for {
+		if s.memPool.Count() >= 1 {
+			err := s.createNewBlock()
+
+			if err != nil {
+				_ = s.so.Logger.Log("msg", "error while try to create new block", "err", err)
+			}
+		} else {
+			s.so.Logger.Log("msg", "no transactions in memPool to create new block")
+		}
+
+		<-ticker.C
+	}
+}
+
 func (s *Server) sendGetStatusMessage(peer *TCPPeer) {
 	getStatusMsg := &GetStatusMessage{}
 
@@ -220,7 +244,7 @@ func (s *Server) sendGetStatusMessage(peer *TCPPeer) {
 	_ = peer.Send(msgData)
 }
 
-func (s *Server) Broadcast(payload []byte) error {
+func (s *Server) broadcast(payload []byte) error {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
@@ -255,7 +279,7 @@ func (s *Server) ProcessMessage(m *DecodedMessage) error {
 
 func (s *Server) processTransaction(transaction *core.Transaction) error {
 	hash := transaction.Hash(core.TxHasher{})
-	_ = s.so.Logger.Log("msg", "receive new transaction", "hash", hash, "mempool length", s.memPool.all.Count())
+	_ = s.so.Logger.Log("msg", "receive new transaction", "hash", hash, "mempool length", s.memPool.Count())
 
 	if s.memPool.Contains(hash) {
 		return nil
@@ -415,7 +439,7 @@ func (s *Server) broadcastTx(tx *core.Transaction) error {
 		return errBytes
 	}
 
-	return s.Broadcast(encMsg)
+	return s.broadcast(encMsg)
 }
 
 func (s *Server) broadcastBlock(b *core.Block) error {
@@ -433,7 +457,7 @@ func (s *Server) broadcastBlock(b *core.Block) error {
 		return errBytes
 	}
 
-	return s.Broadcast(encMsg)
+	return s.broadcast(encMsg)
 }
 
 func (s *Server) createNewBlock() error {
@@ -443,7 +467,7 @@ func (s *Server) createNewBlock() error {
 		return err
 	}
 
-	txs := s.memPool.Pending()
+	txs := s.memPool.txs.Data
 
 	block, e := core.NewBlockFromPrevHeader(header, txs)
 
@@ -460,7 +484,7 @@ func (s *Server) createNewBlock() error {
 	if s.chain.AddBlock(block) {
 		go s.broadcastBlock(block)
 
-		s.memPool.ClearPending()
+		s.memPool.Clear()
 	}
 
 	return nil

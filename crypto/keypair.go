@@ -7,8 +7,10 @@ import (
 	"crypto/sha256"
 	"crypto/x509"
 	"encoding/gob"
+	"encoding/json"
 	"encoding/pem"
 	"errors"
+	"fmt"
 	"github.com/Phanile/uretra_network/types"
 	"math/big"
 )
@@ -185,6 +187,84 @@ func PublicKeyFromBytes(b []byte) (PublicKey, error) {
 		return PublicKey{}, err
 	}
 	return PublicKey{Key: pub.(*ecdsa.PublicKey)}, nil
+}
+
+func (pk PublicKey) MarshalJSON() ([]byte, error) {
+	if pk.Key == nil {
+		return []byte("null"), nil
+	}
+	return json.Marshal(struct {
+		X     string `json:"x"`
+		Y     string `json:"y"`
+		Curve string `json:"curve"`
+	}{
+		X:     pk.Key.X.String(),
+		Y:     pk.Key.Y.String(),
+		Curve: "P256",
+	})
+}
+
+func (pk *PublicKey) UnmarshalJSON(data []byte) error {
+	var tmp struct {
+		X     string `json:"x"`
+		Y     string `json:"y"`
+		Curve string `json:"curve"`
+	}
+
+	if err := json.Unmarshal(data, &tmp); err != nil {
+		return err
+	}
+
+	x := new(big.Int)
+	x.SetString(tmp.X, 10)
+
+	y := new(big.Int)
+	y.SetString(tmp.Y, 10)
+
+	var curve elliptic.Curve
+	switch tmp.Curve {
+	case "P256":
+		curve = elliptic.P256()
+	default:
+		return fmt.Errorf("unknown curve")
+	}
+
+	pk.Key = &ecdsa.PublicKey{
+		Curve: curve,
+		X:     x,
+		Y:     y,
+	}
+
+	return nil
+}
+
+func (s *Signature) MarshalJSON() ([]byte, error) {
+	if s == nil {
+		return []byte("null"), nil
+	}
+	return json.Marshal(struct {
+		R string `json:"r"`
+		S string `json:"s"`
+	}{
+		R: s.R().String(),
+		S: s.S().String(),
+	})
+}
+
+func (s *Signature) UnmarshalJSON(data []byte) error {
+	var tmp struct {
+		R string `json:"r"`
+		S string `json:"s"`
+	}
+
+	if err := json.Unmarshal(data, &tmp); err != nil {
+		return err
+	}
+
+	s.R().SetString(tmp.R, 10)
+	s.S().SetString(tmp.S, 10)
+
+	return nil
 }
 
 func init() {
