@@ -43,7 +43,7 @@ func (ms *MemoryStorage) Get(height uint32) (*Block, error) {
 	ms.mu.RLock()
 	defer ms.mu.RUnlock()
 
-	filename := fmt.Sprintf("%s/%d.json", ms.baseDir, height)
+	filename := fmt.Sprintf("%s%d.json", ms.baseDir, height)
 	data, err := os.ReadFile(filename)
 	if err != nil {
 		return nil, err

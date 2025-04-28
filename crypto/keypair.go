@@ -261,7 +261,10 @@ func (s *Signature) UnmarshalJSON(data []byte) error {
 		return err
 	}
 
+	s.r = new(big.Int)
 	s.R().SetString(tmp.R, 10)
+
+	s.s = new(big.Int)
 	s.S().SetString(tmp.S, 10)
 
 	return nil
