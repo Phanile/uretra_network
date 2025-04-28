@@ -18,10 +18,10 @@ jobs:
 
       - name: Build
         working-directory: ./uretra_network
-        run: go build -o ./cmd/node.exe -ldflags="-X 'main.configPath=./config/config.json'" ./cmd/main.go
+        run: go build -o node.exe -ldflags="-X 'main.configPath=./config/config.json'" ./cmd/main.go
 
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
           name: node-executable
-          path: uretra_network/cmd/node.exe  # Путь к собранному файлу
+          path: uretra_network/node.exe
