@@ -1,0 +1,27 @@
+name: Build Node
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: '1.23.5'
+
+      - name: Build
+        working-directory: ./uretra_network 
+        run: go build -o uretra.exe -ldflags="-X 'main.configPath=./config/config.json'" ./cmd/main.go
+
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: node-executable
+          path: uretra_network/node.exe 
