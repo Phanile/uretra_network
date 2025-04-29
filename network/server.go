@@ -376,7 +376,7 @@ func (s *Server) processGetBlocksMessage(from net.Addr, m *GetBlocksMessage) err
 	}
 
 	blocksMsg := BlocksMessage{
-		blocks: blocks,
+		Blocks: blocks,
 	}
 
 	buf := &bytes.Buffer{}
@@ -411,10 +411,10 @@ func (s *Server) processGetBlocksMessage(from net.Addr, m *GetBlocksMessage) err
 }
 
 func (s *Server) processBlocksMessage(from net.Addr, m *BlocksMessage) error {
-	_ = s.so.Logger.Log("msg", "received ", len(m.blocks), " blocks from ", from)
+	_ = s.so.Logger.Log("msg", "received ", len(m.Blocks), " blocks from ", from)
 
-	for i := 0; i < len(m.blocks); i++ {
-		s.chain.AddBlock(m.blocks[i])
+	for i := 0; i < len(m.Blocks); i++ {
+		s.chain.AddBlock(m.Blocks[i])
 	}
 
 	return nil
