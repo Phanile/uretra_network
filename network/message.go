@@ -3,7 +3,7 @@ package network
 import "github.com/Phanile/uretra_network/core"
 
 type BlocksMessage struct {
-	blocks []*core.Block
+	Blocks []*core.Block
 }
 
 type GetBlocksMessage struct {

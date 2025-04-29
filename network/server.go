@@ -332,8 +332,6 @@ func (s *Server) processGetStatusMessage(from net.Addr) error {
 }
 
 func (s *Server) processStatusMessage(addr net.Addr, m *StatusMessage) error {
-	fmt.Println("I AM ", s.so.ID, ", ", "get from ", addr, " data: ", " ID: ", m.ID, " Height of chain: ", m.ActualHeight)
-
 	if s.chain.Height() >= m.ActualHeight {
 		return nil
 	}
@@ -357,8 +355,6 @@ func (s *Server) processStatusMessage(addr net.Addr, m *StatusMessage) error {
 	if !ok {
 		return errors.New("peer not found")
 	}
-
-	fmt.Println("I AM ", s.so.ID, ", ", "wanna get blocks from ", addr, " : my chain height: ", getBlocksMessage.From, " To: ", getBlocksMessage.To)
 
 	return peer.Send(data)
 }
