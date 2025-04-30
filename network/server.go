@@ -266,6 +266,7 @@ func (s *Server) sendGetStatusMessage(peer *TCPPeer) {
 
 func (s *Server) sendPingMessage(peer *TCPPeer) {
 	ticker := time.NewTicker(10 * defaultPingPeersTime)
+	defer ticker.Stop()
 
 	pingMsg := &PingMessage{
 		RequestTime: time.Now(),
@@ -278,12 +279,15 @@ func (s *Server) sendPingMessage(peer *TCPPeer) {
 	msgBytes, _ := msg.Bytes()
 
 	for {
-		err := peer.Send(msgBytes)
+		select {
+		case <-ticker.C:
+			err := peer.Send(msgBytes)
 
-		if err != nil {
-			s.removePeer(peer.conn.RemoteAddr())
+			if err != nil {
+				s.removePeer(peer.conn.RemoteAddr())
+				return
+			}
 		}
-		<-ticker.C
 	}
 }
 
