@@ -146,6 +146,7 @@ func NewServer(opts *ServerOptions) (*Server, error) {
 func (s *Server) Start() {
 	_ = s.TCPTransport.Start()
 	s.boostrapPeers()
+	go s.sendPingMessages()
 
 free:
 	for {
@@ -163,7 +164,6 @@ free:
 			go peer.readLoop(s.rpcChannel)
 
 			s.sendGetStatusMessage(peer)
-			go s.sendPingMessage(peer)
 
 		case rpc := <-s.rpcChannel:
 			msg, err := s.so.RPCDecodeFunc(rpc)
@@ -204,6 +204,8 @@ func (s *Server) boostrapPeers() {
 			dial, err := net.Dial("tcp", addr)
 
 			if err != nil {
+				fmt.Println("peer ", addr, " is dead")
+				RemovePeerFromConfig(addr)
 				return
 			}
 
@@ -264,9 +266,8 @@ func (s *Server) sendGetStatusMessage(peer *TCPPeer) {
 	_ = peer.Send(msgData)
 }
 
-func (s *Server) sendPingMessage(peer *TCPPeer) {
-	ticker := time.NewTicker(10 * defaultPingPeersTime)
-	defer ticker.Stop()
+func (s *Server) sendPingMessages() {
+	ticker := time.NewTicker(time.Second * defaultPingPeersTime)
 
 	pingMsg := &PingMessage{
 		RequestTime: time.Now(),
@@ -281,11 +282,14 @@ func (s *Server) sendPingMessage(peer *TCPPeer) {
 	for {
 		select {
 		case <-ticker.C:
-			err := peer.Send(msgBytes)
+			for _, peerInfo := range s.peerMap {
+				err := peerInfo.Peer.Send(msgBytes)
 
-			if err != nil {
-				s.removePeer(peer.conn.RemoteAddr())
-				return
+				if err != nil {
+					s.removePeer(peerInfo.Peer.conn.RemoteAddr())
+					fmt.Println("peer", peerInfo.Peer.conn.RemoteAddr().String(), "is dead")
+					return
+				}
 			}
 		}
 	}
