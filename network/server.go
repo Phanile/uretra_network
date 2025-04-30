@@ -23,6 +23,7 @@ const (
 
 const (
 	defaultBlockTime              = 10
+	defaultPingPeersTime          = 10
 	maxTransactionsCountInMemPool = 5
 )
 
@@ -42,7 +43,7 @@ type Server struct {
 	TCPTransport *TCPTransport
 	peerCh       chan *TCPPeer
 	mu           sync.RWMutex
-	peerMap      map[net.Addr]*TCPPeer
+	peerMap      map[net.Addr]*PeerInfo
 	so           *ServerOptions
 	memPool      *TxSortedMap
 	chain        *core.Blockchain
@@ -53,7 +54,6 @@ type Server struct {
 }
 
 func MakeServer() *Server {
-	SetConfigToDefaultPeers()
 	conf, errConf := GetConfig()
 
 	if errConf != nil {
@@ -107,7 +107,7 @@ func NewServer(opts *ServerOptions) (*Server, error) {
 	s := &Server{
 		TCPTransport: tr,
 		peerCh:       peerCh,
-		peerMap:      make(map[net.Addr]*TCPPeer),
+		peerMap:      make(map[net.Addr]*PeerInfo),
 		so:           opts,
 		memPool:      NewTxSortedMap(),
 		chain:        chain,
@@ -151,13 +151,19 @@ free:
 	for {
 		select {
 		case peer := <-s.peerCh:
-			s.peerMap[peer.conn.RemoteAddr()] = peer
+			peerInfo := &PeerInfo{
+				Peer: peer,
+			}
+			s.peerMap[peer.conn.RemoteAddr()] = peerInfo
+
 			AddPeerToConfig(peer.conn.RemoteAddr().String())
-			fmt.Println("ADDED NEW PEER: ", peer.conn.RemoteAddr().String())
+
+			_ = s.so.Logger.Log("msg", "added new peer: ", peer.conn.RemoteAddr().String())
 
 			go peer.readLoop(s.rpcChannel)
 
 			s.sendGetStatusMessage(peer)
+			go s.sendPingMessage(peer)
 
 		case rpc := <-s.rpcChannel:
 			msg, err := s.so.RPCDecodeFunc(rpc)
@@ -204,9 +210,23 @@ func (s *Server) boostrapPeers() {
 			s.peerCh <- &TCPPeer{
 				conn: dial,
 			}
-
 		}(addr)
 	}
+}
+
+func (s *Server) removePeer(addr net.Addr) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	peerInfo, ok := s.peerMap[addr]
+
+	if !ok {
+		return
+	}
+
+	_ = peerInfo.Peer.conn.Close()
+	delete(s.peerMap, addr)
+	RemovePeerFromConfig(peerInfo.Peer.conn.RemoteAddr().String())
 }
 
 func (s *Server) createBlockLoop() {
@@ -244,12 +264,35 @@ func (s *Server) sendGetStatusMessage(peer *TCPPeer) {
 	_ = peer.Send(msgData)
 }
 
+func (s *Server) sendPingMessage(peer *TCPPeer) {
+	ticker := time.NewTicker(10 * defaultPingPeersTime)
+
+	pingMsg := &PingMessage{
+		RequestTime: time.Now(),
+	}
+
+	buf := &bytes.Buffer{}
+	_ = gob.NewEncoder(buf).Encode(pingMsg)
+
+	msg := NewMessage(MessageTypePing, buf.Bytes())
+	msgBytes, _ := msg.Bytes()
+
+	for {
+		err := peer.Send(msgBytes)
+
+		if err != nil {
+			s.removePeer(peer.conn.RemoteAddr())
+		}
+		<-ticker.C
+	}
+}
+
 func (s *Server) broadcast(payload []byte) error {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
-	for _, peer := range s.peerMap {
-		err := peer.Send(payload)
+	for _, peerInfo := range s.peerMap {
+		err := peerInfo.Peer.Send(payload)
 
 		if err != nil {
 			return err
@@ -273,13 +316,17 @@ func (s *Server) ProcessMessage(m *DecodedMessage) error {
 		return s.processGetBlocksMessage(m.From, data)
 	case *BlocksMessage:
 		return s.processBlocksMessage(m.From, data)
+	case *PingMessage:
+		return s.processPingMessage(m.From, data)
+	case *PongMessage:
+		return s.processPongMessage(m.From, data)
 	}
 	return nil
 }
 
 func (s *Server) processTransaction(transaction *core.Transaction) error {
 	hash := transaction.Hash(core.TxHasher{})
-	_ = s.so.Logger.Log("msg", "receive new transaction", "hash", hash, "mempool length", s.memPool.Count())
+	_ = s.so.Logger.Log("msg", "receive new transaction", "hash", hash, "current mempool length", s.memPool.Count())
 
 	if s.memPool.Contains(hash) {
 		return nil
@@ -322,13 +369,13 @@ func (s *Server) processGetStatusMessage(from net.Addr) error {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
-	peer, ok := s.peerMap[from]
+	peerInfo, ok := s.peerMap[from]
 
 	if !ok {
 		return errors.New("peer not found")
 	}
 
-	return peer.Send(data)
+	return peerInfo.Peer.Send(data)
 }
 
 func (s *Server) processStatusMessage(addr net.Addr, m *StatusMessage) error {
@@ -350,13 +397,13 @@ func (s *Server) processStatusMessage(addr net.Addr, m *StatusMessage) error {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
-	peer, ok := s.peerMap[addr]
+	peerInfo, ok := s.peerMap[addr]
 
 	if !ok {
 		return errors.New("peer not found")
 	}
 
-	return peer.Send(data)
+	return peerInfo.Peer.Send(data)
 }
 
 func (s *Server) processGetBlocksMessage(from net.Addr, m *GetBlocksMessage) error {
@@ -389,7 +436,7 @@ func (s *Server) processGetBlocksMessage(from net.Addr, m *GetBlocksMessage) err
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
-	peer, ok := s.peerMap[from]
+	peerInfo, ok := s.peerMap[from]
 	if !ok {
 		return errors.New("trying to send messageTypeBlocks - peer not found")
 	}
@@ -401,7 +448,7 @@ func (s *Server) processGetBlocksMessage(from net.Addr, m *GetBlocksMessage) err
 		return err
 	}
 
-	errSend := peer.Send(data)
+	errSend := peerInfo.Peer.Send(data)
 
 	if errSend != nil {
 		return errSend
@@ -418,6 +465,54 @@ func (s *Server) processBlocksMessage(from net.Addr, m *BlocksMessage) error {
 	}
 
 	return nil
+}
+
+func (s *Server) processPingMessage(from net.Addr, pingMsg *PingMessage) error {
+	pongMsg := &PongMessage{
+		BlockchainHeight: s.chain.Height(),
+		ResponseTime:     time.Now(),
+		RequestTime:      pingMsg.RequestTime,
+	}
+
+	buf := &bytes.Buffer{}
+	err := gob.NewEncoder(buf).Encode(pongMsg)
+
+	if err != nil {
+		return err
+	}
+
+	msg := NewMessage(MessageTypePong, buf.Bytes())
+	msgBytes, msgBytesErr := msg.Bytes()
+
+	if msgBytesErr != nil {
+		return msgBytesErr
+	}
+
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	peerInfo, ok := s.peerMap[from]
+	if !ok {
+		return errors.New("trying to process pingMessage - peer not found")
+	}
+
+	return peerInfo.Peer.Send(msgBytes)
+}
+
+func (s *Server) processPongMessage(from net.Addr, pongMsg *PongMessage) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	peerInfo, ok := s.peerMap[from]
+
+	if !ok {
+		return errors.New("trying to process pongMessage - peer not found")
+	}
+
+	peerInfo.BlockchainHeight = pongMsg.BlockchainHeight
+	peerInfo.PingTime = pongMsg.RequestTime.Sub(pongMsg.RequestTime)
+
+	return s.so.Logger.Log("msg", from, "send pong message", "from data: ", peerInfo.BlockchainHeight, " - height blockchain ", peerInfo.PingTime, " - ping time")
 }
 
 func (s *Server) broadcastTx(tx *core.Transaction) error {

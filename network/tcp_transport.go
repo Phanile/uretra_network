@@ -10,7 +10,6 @@ import (
 type PeerInfo struct {
 	Peer             *TCPPeer
 	BlockchainHeight uint32
-	LastSeen         time.Time
 	PingTime         time.Duration
 }
 

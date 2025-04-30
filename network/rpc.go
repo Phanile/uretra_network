@@ -18,6 +18,8 @@ const (
 	MessageTypeStatus
 	MessageTypeGetStatus
 	MessageTypeBlocks
+	MessageTypePing
+	MessageTypePong
 )
 
 type RPC struct {
@@ -36,10 +38,6 @@ type DecodedMessage struct {
 }
 
 type RPCDecodeFunc func(RPC) (*DecodedMessage, error)
-
-type DefaultRPCHandler struct {
-	p RPCProcessor
-}
 
 func NewMessage(t MessageType, data []byte) *Message {
 	return &Message{
@@ -139,6 +137,34 @@ func DefaultRPCDecodeFunc(rpc RPC) (*DecodedMessage, error) {
 		return &DecodedMessage{
 			From: rpc.From,
 			Data: blocksMsg,
+		}, nil
+
+	case MessageTypePing:
+		pingMsg := &PingMessage{}
+
+		err := gob.NewDecoder(bytes.NewReader(msg.Data)).Decode(pingMsg)
+
+		if err != nil {
+			return nil, err
+		}
+
+		return &DecodedMessage{
+			From: rpc.From,
+			Data: pingMsg,
+		}, nil
+
+	case MessageTypePong:
+		pongMsg := &PongMessage{}
+
+		err := gob.NewDecoder(bytes.NewReader(msg.Data)).Decode(pongMsg)
+
+		if err != nil {
+			return nil, err
+		}
+
+		return &DecodedMessage{
+			From: rpc.From,
+			Data: pongMsg,
 		}, nil
 
 	default:

@@ -99,15 +99,3 @@ func SaveConfig(conf *PeersConfig) {
 		panic(errWrite)
 	}
 }
-
-func SetConfigToDefaultPeers() {
-	conf, err := GetConfig()
-
-	if err != nil {
-		panic(err)
-	}
-
-	conf.Peers = []string{"192.168.3.2:3228"}
-
-	SaveConfig(conf)
-}
