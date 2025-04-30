@@ -14,9 +14,11 @@ jobs:
           - os: windows-latest
             extension: .exe
             artifact-name: windows-node
+            shell: pwsh
           - os: ubuntu-latest
             extension: ''
             artifact-name: linux-node
+            shell: bash
     runs-on: ${{ matrix.os }}
     
     steps:
@@ -29,11 +31,16 @@ jobs:
         with:
           go-version: '1.23.5'
 
+      - name: Install UPX (Linux)
+        if: matrix.os == 'ubuntu-latest'
+        run: sudo apt-get update && sudo apt-get install -y upx-ucl
+
       - name: Build Node
         working-directory: uretra_network
+        shell: ${{ matrix.shell }}
         run: |
           go build -o node${{ matrix.extension }} cmd/main.go
-          if [ "${{ matrix.os }}" = "ubuntu-latest" ]; then
+          if [[ "${{ matrix.os }}" == "ubuntu-latest" ]]; then
             strip node
             upx --best node || echo "UPX not installed, skipping compression"
           fi
