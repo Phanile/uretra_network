@@ -6,21 +6,8 @@ on:
     branches: [ "main" ]
 
 jobs:
-  build:
-    strategy:
-      matrix:
-        os: [windows-latest, ubuntu-latest]
-        include:
-          - os: windows-latest
-            extension: .exe
-            artifact-name: windows-node
-            shell: pwsh
-          - os: ubuntu-latest
-            extension: ''
-            artifact-name: linux-node
-            shell: bash
-    runs-on: ${{ matrix.os }}
-    
+  build-windows:
+    runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
         with:
@@ -31,22 +18,40 @@ jobs:
         with:
           go-version: '1.23.5'
 
-      - name: Install UPX (Linux)
-        if: matrix.os == 'ubuntu-latest'
-        run: sudo apt-get update && sudo apt-get install -y upx-ucl
-
-      - name: Build Node
+      - name: Build Windows
         working-directory: uretra_network
-        shell: ${{ matrix.shell }}
-        run: |
-          go build -o node${{ matrix.extension }} cmd/main.go
-          if [[ "${{ matrix.os }}" == "ubuntu-latest" ]]; then
-            strip node
-            upx --best node || echo "UPX not installed, skipping compression"
-          fi
+        run: go build -o node.exe cmd/main.go
 
-      - name: Upload Artifact
+      - name: Upload Windows Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ matrix.artifact-name }}
-          path: uretra_network/node${{ matrix.extension }}
+          name: windows-node
+          path: uretra_network/node.exe
+
+  build-linux:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: 'uretra_network'
+
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: '1.23.5'
+
+      - name: Install UPX
+        run: sudo apt-get update && sudo apt-get install -y upx-ucl
+
+      - name: Build Linux
+        working-directory: uretra_network
+        run: |
+          go build -o node cmd/main.go
+          strip node
+          upx --best node || echo "UPX compression failed"
+
+      - name: Upload Linux Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-node
+          path: uretra_network/node
