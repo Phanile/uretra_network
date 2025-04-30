@@ -269,20 +269,20 @@ func (s *Server) sendGetStatusMessage(peer *TCPPeer) {
 func (s *Server) sendPingMessages() {
 	ticker := time.NewTicker(time.Second * defaultPingPeersTime)
 
-	pingMsg := &PingMessage{
-		RequestTime: time.Now(),
-	}
-
-	buf := &bytes.Buffer{}
-	_ = gob.NewEncoder(buf).Encode(pingMsg)
-
-	msg := NewMessage(MessageTypePing, buf.Bytes())
-	msgBytes, _ := msg.Bytes()
-
 	for {
 		select {
 		case <-ticker.C:
 			for _, peerInfo := range s.peerMap {
+				pingMsg := &PingMessage{
+					RequestTime: time.Now(),
+				}
+
+				buf := &bytes.Buffer{}
+				_ = gob.NewEncoder(buf).Encode(pingMsg)
+
+				msg := NewMessage(MessageTypePing, buf.Bytes())
+				msgBytes, _ := msg.Bytes()
+
 				err := peerInfo.Peer.Send(msgBytes)
 
 				if err != nil {
@@ -518,7 +518,7 @@ func (s *Server) processPongMessage(from net.Addr, pongMsg *PongMessage) error {
 	}
 
 	peerInfo.BlockchainHeight = pongMsg.BlockchainHeight
-	peerInfo.PingTime = pongMsg.RequestTime.Sub(pongMsg.RequestTime)
+	peerInfo.PingTime = pongMsg.RequestTime.Sub(pongMsg.RequestTime) * time.Millisecond
 
 	return s.so.Logger.Log("msg", from, "send pong message", "from data: ", peerInfo.BlockchainHeight, " - height blockchain ", peerInfo.PingTime, " - ping time")
 }
