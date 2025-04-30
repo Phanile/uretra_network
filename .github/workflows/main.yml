@@ -7,7 +7,18 @@ on:
 
 jobs:
   build:
-    runs-on: windows-latest
+    strategy:
+      matrix:
+        os: [windows-latest, ubuntu-latest]
+        include:
+          - os: windows-latest
+            extension: .exe
+            artifact-name: windows-node
+          - os: ubuntu-latest
+            extension: ''
+            artifact-name: linux-node
+    runs-on: ${{ matrix.os }}
+    
     steps:
       - uses: actions/checkout@v4
         with:
@@ -19,11 +30,16 @@ jobs:
           go-version: '1.23.5'
 
       - name: Build Node
-        working-directory: uretra_network  # Работаем в корне проекта
-        run: go build -o node.exe cmd/main.go
+        working-directory: uretra_network
+        run: |
+          go build -o node${{ matrix.extension }} cmd/main.go
+          if [ "${{ matrix.os }}" = "ubuntu-latest" ]; then
+            strip node
+            upx --best node || echo "UPX not installed, skipping compression"
+          fi
 
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: node-executable
-          path: uretra_network/node.exe
+          name: ${{ matrix.artifact-name }}
+          path: uretra_network/node${{ matrix.extension }}
