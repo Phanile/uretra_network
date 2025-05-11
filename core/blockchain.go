@@ -140,10 +140,6 @@ func (bc *Blockchain) GetHeader(height uint32) (*Header, error) {
 	return bc.headers[height], nil
 }
 
-func (bc *Blockchain) SetValidator(val Validator) {
-	bc.validator = val
-}
-
 func (bc *Blockchain) Height() uint32 {
 	return uint32(len(bc.headers) - 1)
 }

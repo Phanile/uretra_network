@@ -27,6 +27,8 @@ const (
 	maxTransactionsCountInMemPool = 5
 )
 
+const blockReduction = 210000
+
 type ServerOptions struct {
 	SeedNodes        []string
 	ListenAddress    string
@@ -46,8 +48,8 @@ type Server struct {
 	peerMap      map[net.Addr]*PeerInfo
 	so           *ServerOptions
 	memPool      *TxSortedMap
-	chain        *core.Blockchain
 	isValidator  bool
+	chain        *core.Blockchain
 	rpcChannel   chan RPC
 	quitChannel  chan struct{}
 	txChannel    chan *core.Transaction
@@ -581,12 +583,41 @@ func (s *Server) createNewBlock() error {
 	}
 
 	if s.chain.AddBlock(block) {
+		s.rewardValidator()
 		go s.broadcastBlock(block)
 
 		s.memPool.Clear()
 	}
 
 	return nil
+}
+
+func (s *Server) rewardValidator() {
+	reward := s.getBlockReward()
+	address := s.getValidatorAddress()
+
+	err := s.chain.GetAccounts().AddBalance(address, reward)
+
+	if err != nil {
+		_ = s.so.Logger.Log("err", err)
+	} else {
+		_ = s.so.Logger.Log("msg", "reward validator success", "address", address, "reward", reward, "$SCMN")
+	}
+}
+
+func (s *Server) getBlockReward() uint64 {
+	halving := s.chain.Height() / blockReduction
+
+	if halving >= 64 {
+		return 0
+	}
+
+	reward := 500
+	return uint64(reward >> halving)
+}
+
+func (s *Server) getValidatorAddress() types.Address {
+	return s.so.PrivateKey.PublicKey().Address()
 }
 
 func genesisBlock(key crypto.PrivateKey) *core.Block {
